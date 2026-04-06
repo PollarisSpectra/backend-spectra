@@ -1,7 +1,6 @@
 import os
 import random
 from pydoc import stripid
-
 import jwt
 from flask import Flask, jsonify, request, send_file, make_response, Response
 from flask_bcrypt import generate_password_hash, check_password_hash
@@ -80,19 +79,15 @@ def cadastro_usuario():
 
 @app.route('/editar_usuario/<int:id>', methods=['PUT'])
 def editar_usuario(id):
-    token = request.cookies.get('access_token')
+    token = request.cookies.get('token')
 
     if not token:
         return jsonify({"error": "Token de autenticação necessário."}), 401
+
     
     try:
         payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         id_usuario = payload['id_usuario']
-        tipo = payload['tipo']
-
-        if id_usuario != id and tipo != 0: # os ids são diferentes e não é administrador
-            return jsonify({"error": "Você não pode editar outro usuário, apenas administradores."}), 401
-
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
@@ -104,16 +99,14 @@ def editar_usuario(id):
         if not cur.fetchone():
             return jsonify({"error": "Usuário não encontrado"}), 404
 
-        nome = request.form.get('nome')
-        email = request.form.get('email')
-
-        if not nome or not email:
-            return jsonify({"error": "Nome e email são obrigatórios."}), 400
-
-        email = request.form.get('email').strip().lower()
+        nome = request.form.get('nome').lower()
+        email = request.form.get('email').lower()
         senha = request.form.get('senha')
         data_nascimento = request.form.get('data_nascimento')
         imagem = request.files.get('imagem')
+
+
+
 
         cur.execute('SELECT 1 FROM usuario WHERE email = ? AND id_usuario != ?', (email, id))
         if cur.fetchone():
@@ -123,6 +116,7 @@ def editar_usuario(id):
             return jsonify({"error": "Senha inválida"}), 400
 
         senha_hash = generate_password_hash(senha).decode('utf-8')
+        print(senha_hash)
 
         cur.execute("""
             UPDATE usuario SET nome = ?, email = ?, data_nascimento = ?, senha = ?
@@ -156,10 +150,11 @@ def editar_usuario(id):
 
 @app.route('/desbloquear_usuario/<int:id>', methods=['PUT'])
 def desbloquear_usuario(id):
-    token = request.cookies.get('access_token')
+    token = request.cookies.get('token')
 
     if not token:
         return jsonify({"error": "Token de autenticação necessário."}), 401
+
     
     try:
         payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
@@ -195,39 +190,21 @@ def desbloquear_usuario(id):
 
 @app.route('/buscar_usuario', methods=['GET'])
 def buscar_usuario():
-    token = request.cookies.get('access_token')
 
-    if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
+    nome = (request.args.get('nome')).upper()
 
-    try:
-        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        id_usuario = payload['id_usuario']
-        tipo = payload['tipo']
-
-        if tipo == 1:  # indica que o usuário não é administrador
-            return jsonify({
-                "error": "Acesso negado",
-                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
-            }), 403
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Token invalid"}), 401
-
-    nome = request.args.get('nome')
-
-    if not nome:
-        return jsonify({"error": "Informe o nome do usuário"}), 400
-
+    # data = request.get_json()
+    # nome = data.get('nome')
     try:
         cur = con.cursor()
 
-       # cur.execute('SELECT * FROM usuario WHERE nome = ?', (nome,))
-        cur.execute('SELECT * FROM usuario WHERE lower(nome) LIKE ?', (f"%{nome.lower()}%",))
-        usuarios = cur.fetchall()
+        if nome:
+           # cur.execute('SELECT * FROM usuario WHERE nome = ?', (nome,))
+            cur.execute('SELECT * FROM usuario WHERE upper(nome) LIKE ?', (f"%{nome}%",))
+            usuarios = cur.fetchall()
+            return jsonify({'usuarios': usuarios}), 200
 
-        return jsonify({'usuarios': usuarios}), 200
+        return jsonify({'error': 'Informe o nome do usuário'}), 400
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar usuário"}), 500
     finally:
@@ -236,26 +213,6 @@ def buscar_usuario():
 
 @app.route('/listar_usuarios', methods=['GET'])
 def listar_usuarios():
-    token = request.cookies.get('access_token')
-
-    if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
-
-    try:
-        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-        id_usuario = payload['id_usuario']
-        tipo = payload['tipo']
-
-        if tipo == 1: # indica que o usuário não é administrador
-            return jsonify({
-                "error": "Acesso negado",
-                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
-            }), 403
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Token invalid"}), 401
-
     try:
         cur = con.cursor()
         cur.execute('SELECT * FROM usuario')
@@ -268,7 +225,7 @@ def listar_usuarios():
 
 @app.route('/excluir_usuario/<int:id>', methods=['DELETE'])
 def excluir_usuario(id):
-    token = request.cookies.get('access_token')
+    token = request.cookies.get('token')
 
     if not token:
         return jsonify({"error": "Token de autenticação necessário."}), 401
@@ -361,19 +318,11 @@ def login():
 
             token = jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
 
-            resp = make_response(jsonify({
-                "mensagem": "Logado com sucesso",
-                "usuario": {
-                    "id_usuario": id_usuario,
-                    "nome": nome,
-                }
-            }), 200)
+            resp = make_response(jsonify({"mensagem": "Logado com sucesso"}), 200)
             resp.set_cookie("access_token", token,
-                            httponly=True,
-                            secure=False,
-                            samesite="Lax",
-                            path="/",
-                            max_age=600
+                                httponly=True,
+                                secure=False,
+                                samesite='Lax'
                             )
 
             return resp
@@ -464,8 +413,6 @@ def validar_email():
 
         id_usuario = usuario[0]
         codigo_banco = usuario[1]
-
-
 
 
         if int(codigo) != int(codigo_banco):
@@ -573,3 +520,316 @@ def recuperar_senha():
 
     finally:
         cur.close()
+
+@app.route('/cadastro_filme', methods=['POST'])
+def cadastro_filme():
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    cur = con.cursor()
+    try:
+        titulo = request.form.get('titulo', '').strip().lower()
+        if not titulo or titulo == '' :
+            return jsonify({"error": "Título é obrigatório"}), 400
+        sinopse = request.form.get('sinopse').strip().lower()
+        if not sinopse or sinopse == '' :
+            return jsonify({"error": "Sinopse é obrigatória"}), 400
+        genero = request.form.get('genero')
+        duracao = request.form.get('duracao')
+        classificacao = request.form.get('classificacao')
+        data_lancamento = request.form.get('data_lancamento')
+        trailer = request.form.get('trailer')
+
+
+        cur.execute('select 1 from filme where titulo = ?', (titulo,))
+        if cur.fetchone():
+            return jsonify({"error": "Filme já cadastrado"}), 400
+
+        cur.execute("""
+                    insert into filme(titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer)
+                       values(?, ?, ?, ?, ?, ?, ?) 
+                    """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer))
+
+        con.commit()
+        return jsonify({"message": "Filme cadastrado com sucesso!"}), 200
+
+    except Exception as e:
+        # return jsonify({"message": "Erro ao cadastrar usuário", f'"erro: {e}"}), 500
+        return jsonify({
+            "message": f"Erro ao cadastrar filme: {e}"
+        }), 500
+    finally:
+        cur.close()
+
+
+@app.route('/editar_filme/<int:id>', methods=['PUT'])
+def editar_filme(id):
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
+    cur = con.cursor()
+    try:
+        cur.execute('SELECT 1 FROM filme WHERE id_filme = ?', (id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Filme não encontrado"}), 404
+
+        titulo = request.form.get('titulo')
+        sinopse = request.form.get('sinopse')
+        genero = request.form.get('genero')
+        duracao = request.form.get('duracao')
+        classificacao = request.form.get('classificacao')
+        data_lancamento = request.form.get('data_lancamento')
+        trailer = request.form.get('trailer')
+
+        cur.execute('SELECT 1 FROM filme WHERE titulo = ? AND id_filme != ?', (titulo, id))
+        if cur.fetchone():
+            return jsonify({"error": "Filme já cadastrado"}), 400
+
+        cur.execute("""
+            UPDATE filme SET titulo = ?, sinopse = ?, genero = ?, duracao = ?, classificacao = ?, data_lancamento = ?, trailer = ?
+            WHERE id_filme = ? """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer, id))
+        con.commit()
+
+        return jsonify({
+            "message": "Filme atualizado com sucesso",
+            "filme": {
+                "id_filme": id,
+                "titulo": titulo,
+                "sinopse": sinopse,
+                "genero": genero,
+                "duracao": duracao,
+                "classificacao": classificacao,
+                "data_lancamento": data_lancamento,
+                "trailer": trailer
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "message": f"Erro ao atualizar filme.{e}"
+        }), 500
+
+    finally:
+        cur.close()
+
+@app.route('/excluir_filme/<int:id>', methods=['DELETE'])
+def excluir_filme(id):
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+        tipo = payload['tipo']
+
+        if tipo == 1: # indica que o usuário não é administrador
+            return jsonify({
+                "error": "Acesso negado",
+                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
+            }), 403
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
+    cur = con.cursor()
+    try:
+        cur.execute('SELECT 1 FROM filme WHERE id_filme = ?', (id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Filme não encontrado"}), 404
+
+        cur.execute('DELETE FROM filme WHERE id_filme = ?', (id,))
+        con.commit()
+
+        return jsonify({"message": "Filme excluído com sucesso"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao excluir filme."}), 500
+
+    finally:
+        cur.close()
+
+@app.route('/buscar_filme', methods=['GET'])
+def buscar_filme():
+
+    titulo = (request.args.get('titulo')).upper()
+
+    try:
+        cur = con.cursor()
+
+        if titulo:
+
+            cur.execute('SELECT * FROM filme WHERE upper(titulo) LIKE ?', (f"%{titulo}%",))
+            filmes = cur.fetchall()
+            return jsonify({'filmes': filmes}), 200
+
+        return jsonify({'error': 'Informe o nome do filme'}), 400
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar filme"}), 500
+    finally:
+        cur.close()
+
+
+@app.route('/listar_filme', methods=['GET'])
+def listar_filme():
+    try:
+        cur = con.cursor()
+        cur.execute('SELECT * FROM filme')
+        filmes = cur.fetchall()
+        return jsonify({'filmes': filmes}), 200
+    except Exception as e:
+        return jsonify({"error": f"Erro ao listar filmes"}), 500
+    finally:
+        cur.close()
+
+
+@app.route('/cadastro_sala', methods=['POST'])
+def cadastro_sala():
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    cur = con.cursor()
+    try:
+        nome = request.form.get('nome', '').strip().lower()
+        if not nome or nome == '' :
+            return jsonify({"error": "Nome é obrigatório"}), 400
+        qtd_fileiras = request.form.get('qtd_fileiras')
+        if not qtd_fileiras or qtd_fileiras == '' :
+            return jsonify({"error": "Quantidade de fileiras é obrigatória"}), 400
+        qtd_colunas = request.form.get('qtd_colunas')
+        if not qtd_colunas or qtd_colunas == '' :
+            return jsonify({"error": "Quantidade de colunas é obrigatória"}), 400
+
+        cur.execute('SELECT 1 FROM sala WHERE nome = ? AND id_sala != ?', (nome, id))
+        if cur.fetchone():
+            return jsonify({"error": "Nome da sala já está cadastrado"}), 400
+
+        cur.execute("""
+                    insert into sala(nome, qtd_fileiras, qtd_colunas)
+                       values(?, ?, ?) 
+                    """, (nome.lower(), qtd_fileiras, qtd_colunas))
+
+        con.commit()
+        return jsonify({"message": "Sala cadastrada com sucesso!"}), 200
+
+    except Exception as e:
+        # return jsonify({"message": "Erro ao cadastrar usuário", f'"erro: {e}"}), 500
+        return jsonify({
+            "message": f"Erro ao cadastrar sala: {e}"
+        }), 500
+    finally:
+        cur.close()
+
+
+@app.route('/editar_sala/<int:id>', methods=['PUT'])
+def editar_sala(id):
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        cur = con.cursor()
+        cur.execute('SELECT 1 FROM sala WHERE id_sala = ?', (id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Sala não encontrada"}), 404
+
+        nome = request.form.get('nome')
+        qtd_fileiras = request.form.get('qtd_fileiras').lower()
+        qtd_colunas = request.form.get('qtd_colunas').lower()
+
+
+        cur.execute('SELECT 1 FROM sala WHERE nome = ? AND id_sala != ?', (nome, id))
+        if cur.fetchone():
+            return jsonify({"error": "Nome da sala já está cadastrado"}), 400
+
+        cur.execute("""
+                    UPDATE sala SET nome = ?, qtd_fileiras = ?, qtd_colunas = ?
+                    WHERE id_sala = ? """, (nome, qtd_fileiras, qtd_colunas, id))
+        con.commit()
+
+        return jsonify({
+            "message": "Sala atualizada com sucesso",
+            "sala": {
+                "id_sala": id,
+                "nome": nome,
+                "qtd_fileiras": qtd_fileiras,
+                "qtd_colunas": qtd_colunas
+            }
+        }), 200
+
+    except Exception as e:
+            return jsonify({
+                "message": f"Erro ao atualizar sala.{e}"
+            }), 500
+
+    finally:
+        cur.close()
+
+
+@app.route('/excluir_sala/<int:id>', methods=['DELETE'])
+def excluir_sala(id):
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+        tipo = payload['tipo']
+
+        if tipo == 1:  # indica que o usuário não é administrador
+            return jsonify({
+                "error": "Acesso negado",
+                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
+            }), 403
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
+    cur = con.cursor()
+    try:
+        cur.execute('SELECT 1 FROM sala WHERE id_sala = ?', (id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Sala não encontrada"}), 404
+
+        cur.execute('DELETE FROM ASSENTO_SALA WHERE ID_SALA = ?', (id,))
+        cur.execute('DELETE FROM SALA WHERE ID_SALA = ?', (id,))
+        con.commit()
+
+        return jsonify({"message": "Sala excluída com sucesso"}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao excluir sala."}), 500
+
+    finally:
+        cur.close()
+
+@app.route('/listar_sala', methods=['GET'])
+def listar_sala():
+    try:
+        cur = con.cursor()
+        cur.execute('SELECT * FROM sala')
+        salas = cur.fetchall()
+        return jsonify({'salas': salas}), 200
+    except Exception as e:
+        return jsonify({"error": f"Erro ao listar salas"}), 500
+    finally:
+        cur.close()
+

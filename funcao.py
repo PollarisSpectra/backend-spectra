@@ -1,7 +1,7 @@
 import random
 import smtplib
 from email.mime.text import MIMEText
-from hmac import new
+
 
 
 def validar_senha(senha: str):
@@ -29,28 +29,26 @@ def validar_senha(senha: str):
 
 
 def enviando_email(destinatario, assunto, mensagem):
-    try:
-        user = "sophia.biliattoo@gmail.com"
-        senha = "eahu tqrv kaxi jsnb"
+    user = "sophia.biliattoo@gmail.com"
+    senha = "eahu tqrv kaxi jsnb"
 
-        msg = MIMEText(mensagem)
-        msg['Subject'] = assunto
-        msg['From'] = user
-        msg['To'] = destinatario
+    msg = MIMEText(mensagem)
+    msg['Subject'] = assunto
+    msg['From'] = user
+    msg['To'] = destinatario
 
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-        server.starttls()
-        server.login(user, senha)
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        print("Houve um erro ao enviar email: " + str(e))
+    server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+    server.starttls()
+    server.login(user, senha)
+    server.send_message(msg)
+    server.quit()
 
 def remove_bearer(token):
     if token.startswith('Bearer '):
         return token[len('Bearer '):]
     else:
         return token
+
 
 
 # def enviando_email(destinatario, assunto, mensagem):
