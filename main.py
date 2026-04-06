@@ -1,8 +1,9 @@
 import fdb
 from flask import Flask
+from flask_cors import CORS
 
 app = Flask(__name__)
-# CORS(app, origins="*")
+CORS(app, supports_credentials=True, origins=['http://localhost:5173'])
 app.config.from_pyfile('config.py')
 
 host= app.config['DB_HOST']
