@@ -117,6 +117,10 @@ def excluir_sala(id):
         if not cur.fetchone():
             return jsonify({"error": "Sala não encontrada"}), 404
 
+        cur.execute('SELECT 1 FROM sessao WHERE id_sala = ?', (id,))
+        if cur.fetchone():
+            return jsonify({"error": "Não é possível excluir a sala com sessões vinculadas"}), 400
+
         cur.execute('DELETE FROM ASSENTO_SALA WHERE ID_SALA = ?', (id,))
         cur.execute('DELETE FROM SALA WHERE ID_SALA = ?', (id,))
         con.commit()
@@ -132,6 +136,25 @@ def excluir_sala(id):
 
 @salas_blueprint.route('/listar_sala', methods=['GET'])
 def listar_sala():
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        payload = decodificar_token(token)
+        id_usuario = payload['id_usuario']
+        tipo = payload['tipo']
+
+        if tipo == 1:
+            return jsonify({
+                "error": "Acesso negado",
+                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
+            }), 403
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
     try:
         cur = con.cursor()
         cur.execute('SELECT * FROM sala')

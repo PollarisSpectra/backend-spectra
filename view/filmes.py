@@ -147,24 +147,35 @@ def excluir_filme(id):
         cur.close()
 
 
-@filmes_blueprint.route('/buscar_filme', methods=['GET'])
-def buscar_filme():
-    titulo = (request.args.get('titulo')).upper()
-
+@filmes_blueprint.route('/listar_filme', methods=['GET'])
+def listar_filme():
     try:
         cur = con.cursor()
 
-        if titulo:
-            cur.execute('SELECT * FROM filme WHERE upper(titulo) LIKE ?', (f"%{titulo}%",))
-            filmes = cur.fetchall()
-            return jsonify({'filmes': filmes}), 200
+        titulo = request.args.get('titulo', '')
+        categoria = request.args.get('categoria', '')
+        classificacao = request.args.get('classificacao', '')
 
-        return jsonify({'error': 'Informe o nome do filme'}), 400
+        cur.execute("""
+            SELECT * FROM filme
+            WHERE UPPER(titulo) LIKE UPPER(?)
+            AND UPPER(categoria) LIKE UPPER(?)
+            AND UPPER(classificacao) LIKE UPPER(?)
+        """, (
+            f"%{titulo}%",
+            f"%{categoria}%",
+            f"%{classificacao}%"
+        ))
+
+        filmes = cur.fetchall()
+
+        return jsonify({'filmes': filmes}), 200
+
     except Exception as e:
-        return jsonify({"error": f"Erro ao buscar filme"}), 500
+        return jsonify({"error": "Erro ao listar filmes"}), 500
+
     finally:
         cur.close()
-
 
 @filmes_blueprint.route('/listar_filme', methods=['GET'])
 def listar_filme():
