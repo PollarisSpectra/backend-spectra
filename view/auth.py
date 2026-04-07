@@ -1,6 +1,7 @@
-from funcao import validar_senha, enviando_email, encode_password
-from flask import Blueprint, jsonify, request, make_response
-from flask_bcrypt import check_password_hash
+from funcao import validar_senha, enviando_email, encode_password, gerar_token
+from flask import Blueprint, jsonify, request, make_response, current_app
+from flask_bcrypt import check_password_hash, generate_password_hash
+import datetime
 from database import con
 import threading
 import os.path
@@ -8,47 +9,126 @@ import random
 
 auth_blueprint = Blueprint('auth', __name__, url_prefix='/auth')
 
-@auth_blueprint.route('/login', methods=["POST"])
+@auth_blueprint.route('/login', methods=['POST'])
 def login():
+    cursor = con.cursor()
     try:
-        data = request.get_json()
-        print(data)
-        email = data.get('email')
-        senha = data.get('senha')
-
-        if not data:
-            return jsonify({"error": "Payload json faltando"}), 400
+        dados = request.get_json()
+        email = dados.get('email').lower()
+        senha = dados.get('senha')
 
         if not email or not senha:
-            return jsonify({"error": "Email e senha obrigatórios"}), 400
+            return jsonify({'error': 'E-mail e senha são obrigatórios.'}), 400
 
-        cursor = con.cursor()
-        cursor.execute("SELECT senha, id_usuario, nome, tipo FROM usuario WHERE email = ?", (email,))
-
+        cursor.execute("""
+            SELECT senha, id_usuario, nome, situacao, tentativas, tipo, email, email_confirmado
+            FROM usuario
+            WHERE email = ?
+        """, (email,))
         usuario = cursor.fetchone()
-
         if not usuario:
-            return jsonify({"error": "Usuário não encontrado"}), 404
+            return jsonify({'error': 'Usuário não encontrado.'}), 404
 
-        if not check_password_hash(usuario[0], senha):
-            return jsonify({"error": "Email ou senha incorretos"}), 401
+        senha_hash = usuario[0]
+        id_usuario = usuario[1]
+        nome = usuario[2]
+        situacao = usuario[3]
+        tentativas = usuario[4]
+        tipo = usuario[5]
+        email_banco = usuario[6]
+        email_confirmado = usuario[7]
 
-        response = make_response(jsonify({
-            'mensagem': 'Logado com sucesso',
-            'usuario': {
-                'id_usuario': usuario[1],
-                'nome': usuario[2],
-                'tipo': usuario[3]
+        if email_confirmado == 0:
+            return jsonify({'error': 'Usuário nao confirmou email. Contate o administrador.'}), 403
+
+        if situacao == 1:
+            return jsonify({'error': 'Usuário está inativo. Contate o administrador.'}), 403
+
+        if check_password_hash(senha_hash, senha):
+            if tipo != 0:
+                cursor.execute("""
+                               UPDATE usuario SET tentativas = 0 WHERE id_usuario = ?
+                               """, (id_usuario,))
+                con.commit()
+
+            payload = {
+                'id_usuario': id_usuario,
+                'nome': nome,
+                'email': email_banco,
+                'tipo': tipo,
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
             }
-        }), 200)
 
-        return response
+            token = gerar_token(payload)
+
+            resp = make_response(jsonify({
+                'mensagem': 'Logado com sucesso',
+                'usuario': {
+                    'id_usuario': id_usuario,
+                    'nome': nome,
+                    'email': email_banco,
+                    'tipo': tipo
+                }
+            }), 200)
+
+            resp.set_cookie("access_token", token,
+                                httponly=True,
+                                secure=False,
+                                samesite='Lax'
+                            )
+
+            return resp
+
+            # return jsonify({
+            #     'message': 'Login realizado com sucesso.',
+            #     'token': token,
+            #     'usuario': {
+            #         'id_usuario': id_usuario,
+            #         'nome': nome,
+            #         'email': email_banco,
+            #         'tipo': tipo
+            #     }
+            # }), 200
+
+            # enviado = enviar_codigo(id_usuario, email_banco)
+
+            # if not enviado:
+            #     return jsonify({'error': 'Erro ao enviar código'}), 500
+
+            # return jsonify({
+            #     'message': 'Código enviado para o email. Confirme para continuar.'
+            # }), 200
+
+        if tentativas < 2 and tipo != 0:
+            cursor.execute("""
+                UPDATE usuario
+                SET tentativas = tentativas + 1
+                WHERE id_usuario = ?
+            """, (id_usuario,))
+            con.commit()
+            return jsonify({'error': 'E-mail ou senha incorretos. Tente novamente.'}), 401
+
+        if tentativas == 2 and tipo != 0:
+            cursor.execute("""
+                UPDATE usuario
+                SET tentativas = 3, situacao = 1
+                WHERE id_usuario = ?
+            """, (id_usuario,))
+            con.commit()
+            return jsonify({
+                'error': 'Conta bloqueada após 3 tentativas. Contate o administrador.'
+            }), 403
+
+        return jsonify({'error': 'E-mail ou senha incorretos. Tente novamente.'}), 401
+
     except Exception as e:
-        print(f"Houve um erro: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        return jsonify({'error': f'Erro ao realizar login.'}), 500
 
-@auth_blueprint.route('/register', methods=['POST'])
-def cadastro_usuario():
+    finally:
+        cursor.close()
+
+@auth_blueprint.route('/cadastro', methods=['POST'])
+def cadastro():
     cur = con.cursor()
     try:
         nome = request.form.get('nome')
@@ -86,7 +166,7 @@ def cadastro_usuario():
 
         if imagem:
             nome_imagem = f"{id_usuario}.jpg"
-            caminho_imagem_destino = os.path.join(app.config['UPLOAD_FOLDER'], "Usuarios")
+            caminho_imagem_destino = os.path.join(current_app.config['UPLOAD_FOLDER'], "Usuarios")
             os.makedirs(caminho_imagem_destino, exist_ok=True)
             caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
             imagem.save(caminho_imagem)
@@ -105,7 +185,7 @@ def cadastro_usuario():
     finally:
         cur.close()
 
-@auth_blueprint.route('/email', methods=['POST'])
+@auth_blueprint.route('/validar_email', methods=['POST'])
 def validar_email():
     cur = con.cursor()
     try:
@@ -145,6 +225,7 @@ def validar_email():
         return jsonify({'message': 'Email validado com sucesso.'}), 200
 
     except Exception as e:
+        print(f"Erro ao validar email: {str(e)}")
         return jsonify({'error': f'Erro ao validar email.'}), 500
 
     finally:
@@ -163,3 +244,89 @@ def logout():
 
     return resp
 
+@auth_blueprint.route('/recuperar_senha', methods=['POST'])
+def recuperar_senha():
+    cur = con.cursor()
+    try:
+        dados = request.get_json()
+        email = dados.get('email').lower()
+        codigo = dados.get('codigo')
+        nova_senha = dados.get('nova_senha')
+
+        if not email:
+            return jsonify({'error': 'Email é obrigatório'}), 400
+
+        if not codigo and not nova_senha:
+            cur.execute("SELECT id_usuario FROM usuario WHERE email = ?", (email,))
+            if not cur.fetchone():
+                return jsonify({'error': 'Usuário não encontrado'}), 404
+
+            codigo = f"{random.randint(0, 999999):06d}"  # garante 6 dígitos
+
+            cur.execute("UPDATE usuario SET codigo = ? WHERE email = ?", (codigo, email))
+            con.commit()
+
+            threading.Thread(
+                target=enviando_email,
+                args=(email, "Recuperação de senha", f"Código: {codigo}")
+            ).start()
+
+            return jsonify({"mensagem": "Código enviado"}), 200
+
+        if codigo and nova_senha:
+            cur.execute("""
+                SELECT id_usuario, senha_um, senha_dois, senha_tres, codigo
+                FROM usuario
+                WHERE email = ?
+            """, (email,))
+            usuario = cur.fetchone()
+
+            if not usuario:
+                return jsonify({'error': 'Usuário não encontrado'}), 404
+
+            id_usuario = usuario[0]
+            ultimas_senhas = [usuario[1], usuario[2], usuario[3]]
+            codigo_banco = usuario[4]
+
+            # valida código
+            if str(codigo_banco) != str(codigo):
+                return jsonify({'error': 'Código inválido'}), 400
+
+            # valida formato da nova senha
+            if not validar_senha(nova_senha):
+                return jsonify({"error": "A senha não segue nossos padrões de segurança"}), 400
+
+            # valida contra últimas 3 senhas
+            for s in ultimas_senhas:
+                if s and check_password_hash(s, nova_senha):
+                    return jsonify({"error": "Não é permitido reutilizar as últimas 3 senhas"}), 400
+
+            # gera hash da nova senha
+            senha_hash = generate_password_hash(nova_senha).decode('utf-8')
+
+            # atualiza histórico das senhas
+            senha_tres = usuario[2]  # antigo senha_dois
+            senha_dois = usuario[1]   # antigo senha_um
+            senha_um = senha_hash     # nova senha
+
+            # atualiza banco
+            cur.execute("""
+                UPDATE usuario
+                SET senha = ?,
+                    senha_um = ?,
+                    senha_dois = ?,
+                    senha_tres = ?,
+                    codigo = NULL
+                WHERE id_usuario = ?
+            """, (senha_hash, senha_um, senha_dois, senha_tres, id_usuario))
+            con.commit()
+
+            return jsonify({"mensagem": "Senha redefinida com sucesso"}), 200
+
+        return jsonify({'error': 'Dados inválidos'}), 400
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+    finally:
+        cur.close()

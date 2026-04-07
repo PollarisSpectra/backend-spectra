@@ -102,11 +102,11 @@ def remove_bearer(token):
 #     finally:
 #         cursor.close()
 
-def decode_jwt(token):
-    payload = jwt.decode(token, verify=False)
+def decodificar_token(token):
+    payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
     return payload
 
-def encode_jwt(payload):
+def gerar_token(payload):
     token = jwt.encode(
         payload,
         current_app.config['SECRET_KEY'],
