@@ -1,6 +1,9 @@
+from flask import current_app
+from flask_bcrypt import generate_password_hash
 import random
 import smtplib
 from email.mime.text import MIMEText
+import jwt
 from hmac import new
 
 
@@ -98,3 +101,18 @@ def remove_bearer(token):
 #
 #     finally:
 #         cursor.close()
+
+def decode_jwt(token):
+    payload = jwt.decode(token, verify=False)
+    return payload
+
+def encode_jwt(payload):
+    token = jwt.encode(
+        payload,
+        current_app.config['SECRET_KEY'],
+        algorithm='HS256'
+    )
+    return token
+
+def encode_password(password):
+    return generate_password_hash(str(password)).decode('utf-8')
