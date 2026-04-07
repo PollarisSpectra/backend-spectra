@@ -79,15 +79,19 @@ def cadastro_usuario():
 
 @app.route('/editar_usuario/<int:id>', methods=['PUT'])
 def editar_usuario(id):
-    token = request.cookies.get('token')
+    token = request.cookies.get('access_token')
 
     if not token:
         return jsonify({"error": "Token de autenticação necessário."}), 401
 
-    
     try:
         payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         id_usuario = payload['id_usuario']
+        tipo = payload['tipo']
+
+        if id_usuario != id and tipo != 0: # os ids são diferentes e não é administrador
+            return jsonify({"error": "Você não pode editar outro usuário, apenas administradores."}), 401
+
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
@@ -99,14 +103,16 @@ def editar_usuario(id):
         if not cur.fetchone():
             return jsonify({"error": "Usuário não encontrado"}), 404
 
-        nome = request.form.get('nome').lower()
-        email = request.form.get('email').lower()
+        nome = request.form.get('nome')
+        email = request.form.get('email')
+
+        if not nome or not email:
+            return jsonify({"error": "Nome e email são obrigatórios."}), 400
+
+        email = request.form.get('email').strip().lower()
         senha = request.form.get('senha')
         data_nascimento = request.form.get('data_nascimento')
         imagem = request.files.get('imagem')
-
-
-
 
         cur.execute('SELECT 1 FROM usuario WHERE email = ? AND id_usuario != ?', (email, id))
         if cur.fetchone():
@@ -116,7 +122,6 @@ def editar_usuario(id):
             return jsonify({"error": "Senha inválida"}), 400
 
         senha_hash = generate_password_hash(senha).decode('utf-8')
-        print(senha_hash)
 
         cur.execute("""
             UPDATE usuario SET nome = ?, email = ?, data_nascimento = ?, senha = ?
@@ -150,12 +155,11 @@ def editar_usuario(id):
 
 @app.route('/desbloquear_usuario/<int:id>', methods=['PUT'])
 def desbloquear_usuario(id):
-    token = request.cookies.get('token')
+    token = request.cookies.get('access_token')
 
     if not token:
         return jsonify({"error": "Token de autenticação necessário."}), 401
 
-    
     try:
         payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
         id_usuario = payload['id_usuario']
@@ -170,7 +174,7 @@ def desbloquear_usuario(id):
         return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"error": "Token invalid"}), 401
-    
+
     try:
         cur = con.cursor()
         cur.execute("SELECT 1 FROM usuario WHERE id_usuario = ?", (id,))
@@ -178,7 +182,7 @@ def desbloquear_usuario(id):
         if not cur.fetchone():
             return jsonify({"error": "Usuário não encontrado."}), 404
 
-        cur.execute("UPDATE usuario SET situacao = ?", (0,))
+        cur.execute("UPDATE usuario SET situacao = 0, tentativas = 0 WHERE id_usuario = ?", (id,))
 
         con.commit()
     except Exception as e:
@@ -190,21 +194,39 @@ def desbloquear_usuario(id):
 
 @app.route('/buscar_usuario', methods=['GET'])
 def buscar_usuario():
+    token = request.cookies.get('access_token')
 
-    nome = (request.args.get('nome')).upper()
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
 
-    # data = request.get_json()
-    # nome = data.get('nome')
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+        tipo = payload['tipo']
+
+        if tipo == 1:  # indica que o usuário não é administrador
+            return jsonify({
+                "error": "Acesso negado",
+                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
+            }), 403
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
+    nome = request.args.get('nome')
+
+    if not nome:
+        return jsonify({"error": "Informe o nome do usuário"}), 400
+
     try:
         cur = con.cursor()
 
-        if nome:
-           # cur.execute('SELECT * FROM usuario WHERE nome = ?', (nome,))
-            cur.execute('SELECT * FROM usuario WHERE upper(nome) LIKE ?', (f"%{nome}%",))
-            usuarios = cur.fetchall()
-            return jsonify({'usuarios': usuarios}), 200
+       # cur.execute('SELECT * FROM usuario WHERE nome = ?', (nome,))
+        cur.execute('SELECT * FROM usuario WHERE lower(nome) LIKE ?', (f"%{nome.lower()}%",))
+        usuarios = cur.fetchall()
 
-        return jsonify({'error': 'Informe o nome do usuário'}), 400
+        return jsonify({'usuarios': usuarios}), 200
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar usuário"}), 500
     finally:
@@ -213,6 +235,26 @@ def buscar_usuario():
 
 @app.route('/listar_usuarios', methods=['GET'])
 def listar_usuarios():
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        id_usuario = payload['id_usuario']
+        tipo = payload['tipo']
+
+        if tipo == 1: # indica que o usuário não é administrador
+            return jsonify({
+                "error": "Acesso negado",
+                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
+            }), 403
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
     try:
         cur = con.cursor()
         cur.execute('SELECT * FROM usuario')
@@ -225,7 +267,7 @@ def listar_usuarios():
 
 @app.route('/excluir_usuario/<int:id>', methods=['DELETE'])
 def excluir_usuario(id):
-    token = request.cookies.get('token')
+    token = request.cookies.get('access_token')
 
     if not token:
         return jsonify({"error": "Token de autenticação necessário."}), 401
@@ -303,8 +345,8 @@ def login():
 
         if check_password_hash(senha_hash, senha):
             if tipo != 0:
-                cursor.execute(""" 
-                               UPDATE usuario SET tentativas = 0 WHERE id_usuario = ? 
+                cursor.execute("""
+                               UPDATE usuario SET tentativas = 0 WHERE id_usuario = ?
                                """, (id_usuario,))
                 con.commit()
 
@@ -318,7 +360,16 @@ def login():
 
             token = jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
 
-            resp = make_response(jsonify({"mensagem": "Logado com sucesso"}), 200)
+            resp = make_response(jsonify({
+                'mensagem': 'Logado com sucesso',
+                'usuario': {
+                    'id_usuario': id_usuario,
+                    'nome': nome,
+                    'email': email_banco,
+                    'tipo': tipo
+                }
+            }), 200)
+
             resp.set_cookie("access_token", token,
                                 httponly=True,
                                 secure=False,
@@ -549,7 +600,7 @@ def cadastro_filme():
 
         cur.execute("""
                     insert into filme(titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer)
-                       values(?, ?, ?, ?, ?, ?, ?) 
+                       values(?, ?, ?, ?, ?, ?, ?)
                     """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer))
 
         con.commit()
@@ -721,7 +772,7 @@ def cadastro_sala():
 
         cur.execute("""
                     insert into sala(nome, qtd_fileiras, qtd_colunas)
-                       values(?, ?, ?) 
+                       values(?, ?, ?)
                     """, (nome.lower(), qtd_fileiras, qtd_colunas))
 
         con.commit()
