@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from flask import current_app
 from flask_bcrypt import generate_password_hash
 import random
@@ -116,3 +118,9 @@ def gerar_token(payload):
 
 def encode_password(password):
     return generate_password_hash(str(password)).decode('utf-8')
+
+def converter_horario(data, horario):
+    try:
+        return datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")

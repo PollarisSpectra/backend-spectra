@@ -1,4 +1,5 @@
-from flask import Blueprint, jsonify, request
+import os
+from flask import Blueprint, jsonify, request, current_app
 from funcao import decodificar_token
 from database import con
 import jwt
@@ -15,28 +16,46 @@ def cadastro_filme():
 
     cur = con.cursor()
     try:
-        titulo = request.form.get('titulo', '').strip().lower()
-        if not titulo or titulo == '':
+        titulo = (request.form.get('titulo') or '').strip().lower()
+        if not titulo:
             return jsonify({"error": "Título é obrigatório"}), 400
-        sinopse = request.form.get('sinopse').strip().lower()
-        if not sinopse or sinopse == '':
+
+        sinopse = (request.form.get('sinopse') or '').strip().lower()
+        if not sinopse:
             return jsonify({"error": "Sinopse é obrigatória"}), 400
+
         genero = request.form.get('genero')
         duracao = request.form.get('duracao')
         classificacao = request.form.get('classificacao')
         data_lancamento = request.form.get('data_lancamento')
         trailer = request.form.get('trailer')
+        imagem = request.files.get('imagem')
 
+        # verifica duplicidade
         cur.execute('select 1 from filme where titulo = ?', (titulo,))
         if cur.fetchone():
             return jsonify({"error": "Filme já cadastrado"}), 400
 
+        # insere primeiro
         cur.execute("""
-                    insert into filme(titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer)
-                       values(?, ?, ?, ?, ?, ?, ?)
-                    """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer))
+                insert into filme(titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer)
+                values(?, ?, ?, ?, ?, ?, ?)
+                RETURNING id_filme
+            """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer))
 
+        id_filme = cur.fetchone()[0]
         con.commit()
+
+        # salva imagem depois
+        caminho_imagem = None
+        if imagem:
+            nome_imagem = f"{id_filme}.jpg"
+            caminho_imagem_destino = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes")
+            os.makedirs(caminho_imagem_destino, exist_ok=True)
+
+            caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
+            imagem.save(caminho_imagem)
+
         return jsonify({"message": "Filme cadastrado com sucesso!"}), 200
 
     except Exception as e:
@@ -55,7 +74,7 @@ def editar_filme(id):
         return jsonify({"error": "Token de autenticação necessário."}), 401
 
     try:
-        payload = decodificar_token(token)
+        payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
         id_usuario = payload['id_usuario']
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expired"}), 401
@@ -75,15 +94,23 @@ def editar_filme(id):
         classificacao = request.form.get('classificacao')
         data_lancamento = request.form.get('data_lancamento')
         trailer = request.form.get('trailer')
+        imagem = request.files.get('imagem')
 
         cur.execute('SELECT 1 FROM filme WHERE titulo = ? AND id_filme != ?', (titulo, id))
         if cur.fetchone():
             return jsonify({"error": "Filme já cadastrado"}), 400
 
         cur.execute("""
-            UPDATE filme SET titulo = ?, sinopse = ?, genero = ?, duracao = ?, classificacao = ?, data_lancamento = ?, trailer = ?
-            WHERE id_filme = ? """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer, id))
+                UPDATE filme SET titulo = ?, sinopse = ?, genero = ?, duracao = ?, classificacao = ?, data_lancamento = ?, trailer = ?
+                WHERE id_filme = ? """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer, id))
         con.commit()
+
+        if imagem:
+            nome_imagem = f"{id}.jpg"
+            caminho_imagem_destino = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes")
+            os.makedirs(caminho_imagem_destino, exist_ok=True)
+            caminho_imagem = os.path.join(caminho_imagem_destino, nome_imagem)
+            imagem.save(caminho_imagem)
 
         return jsonify({
             "message": "Filme atualizado com sucesso",
@@ -147,23 +174,24 @@ def excluir_filme(id):
         cur.close()
 
 
+
 @filmes_blueprint.route('/listar_filme', methods=['GET'])
 def listar_filme():
     try:
         cur = con.cursor()
 
         titulo = request.args.get('titulo', '')
-        categoria = request.args.get('categoria', '')
+        genero = request.args.get('genero', '')
         classificacao = request.args.get('classificacao', '')
 
         cur.execute("""
             SELECT * FROM filme
             WHERE UPPER(titulo) LIKE UPPER(?)
-            AND UPPER(categoria) LIKE UPPER(?)
+            AND UPPER(genero) LIKE UPPER(?)
             AND UPPER(classificacao) LIKE UPPER(?)
         """, (
             f"%{titulo}%",
-            f"%{categoria}%",
+            f"%{genero}%",
             f"%{classificacao}%"
         ))
 
@@ -177,14 +205,3 @@ def listar_filme():
     finally:
         cur.close()
 
-@filmes_blueprint.route('/listar_filme', methods=['GET'])
-def listar_filme():
-    try:
-        cur = con.cursor()
-        cur.execute('SELECT * FROM filme')
-        filmes = cur.fetchall()
-        return jsonify({'filmes': filmes}), 200
-    except Exception as e:
-        return jsonify({"error": f"Erro ao listar filmes"}), 500
-    finally:
-        cur.close()

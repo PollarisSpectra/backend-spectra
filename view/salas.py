@@ -5,7 +5,6 @@ import jwt
 
 salas_blueprint = Blueprint('salas', __name__, url_prefix='/salas')
 
-
 @salas_blueprint.route('/cadastro_sala', methods=['POST'])
 def cadastro_sala():
     token = request.cookies.get('access_token')
@@ -14,36 +13,51 @@ def cadastro_sala():
         return jsonify({"error": "Token de autenticação necessário."}), 401
 
     cur = con.cursor()
+
     try:
-        nome = request.form.get('nome', '').strip().lower()
+        data = request.get_json() or {}
+
+        nome = data.get('nome', '').strip()
         if not nome or nome == '':
             return jsonify({"error": "Nome é obrigatório"}), 400
-        qtd_fileiras = request.form.get('qtd_fileiras')
+
+        qtd_fileiras = data.get('qtd_fileiras')
         if not qtd_fileiras or qtd_fileiras == '':
             return jsonify({"error": "Quantidade de fileiras é obrigatória"}), 400
-        qtd_colunas = request.form.get('qtd_colunas')
+
+        qtd_colunas = data.get('qtd_colunas')
         if not qtd_colunas or qtd_colunas == '':
             return jsonify({"error": "Quantidade de colunas é obrigatória"}), 400
 
-        cur.execute('SELECT 1 FROM sala WHERE nome = ? AND id_sala != ?', (nome, id))
+        print(qtd_fileiras)
+        print(qtd_colunas)
+        print(nome)
+
+        cur.execute('SELECT 1 FROM sala WHERE nome = ?', (nome,))
         if cur.fetchone():
             return jsonify({"error": "Nome da sala já está cadastrado"}), 400
 
+        print(qtd_fileiras)
+        print(qtd_colunas)
+        print(nome)
+
         cur.execute("""
-                    insert into sala(nome, qtd_fileiras, qtd_colunas)
-                       values(?, ?, ?)
-                    """, (nome.lower(), qtd_fileiras, qtd_colunas))
+            INSERT INTO sala(nome, qtd_fileiras, qtd_colunas)
+            VALUES(?, ?, ?)
+        """, (nome.lower(), qtd_fileiras, qtd_colunas))
 
         con.commit()
+
         return jsonify({"message": "Sala cadastrada com sucesso!"}), 200
 
     except Exception as e:
+        con.rollback()
         return jsonify({
             "message": f"Erro ao cadastrar sala: {e}"
         }), 500
+
     finally:
         cur.close()
-
 
 @salas_blueprint.route('/editar_sala/<int:id>', methods=['PUT'])
 def editar_sala(id):
@@ -58,13 +72,22 @@ def editar_sala(id):
         if not cur.fetchone():
             return jsonify({"error": "Sala não encontrada"}), 404
 
-        nome = request.form.get('nome')
-        qtd_fileiras = request.form.get('qtd_fileiras').lower()
-        qtd_colunas = request.form.get('qtd_colunas').lower()
 
-        cur.execute('SELECT 1 FROM sala WHERE nome = ? AND id_sala != ?', (nome, id))
+        dados = request.get_json()
+
+        nome = dados.get('nome')
+        qtd_fileiras = dados.get('qtd_fileiras')
+        qtd_colunas = dados.get('qtd_colunas')
+
+        cur.execute('SELECT 1 FROM sala WHERE nome = ? AND id_sala != ?', (nome.lower(), id))
         if cur.fetchone():
             return jsonify({"error": "Nome da sala já está cadastrado"}), 400
+
+
+        print(nome)
+        print(qtd_fileiras)
+        print(qtd_colunas)
+        print(id)
 
         cur.execute("""
                     UPDATE sala SET nome = ?, qtd_fileiras = ?, qtd_colunas = ?
