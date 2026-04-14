@@ -56,7 +56,7 @@ def login():
                 'nome': nome,
                 'email': email_banco,
                 'tipo': tipo,
-                'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=10)
+                'exp': datetime.datetime.utcnow() + datetime.timedelta(minutes=60)
             }
 
             token = gerar_token(payload)

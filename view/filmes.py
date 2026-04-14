@@ -83,17 +83,19 @@ def editar_filme(id):
 
     cur = con.cursor()
     try:
-        cur.execute('SELECT 1 FROM filme WHERE id_filme = ?', (id,))
-        if not cur.fetchone():
+
+        cur.execute('SELECT titulo, sinopse,genero,duracao, classificacao,data_lancamento, trailer  FROM filme WHERE id_filme = ?', (id,))
+        filmes = cur.fetchone()
+        if not filmes:
             return jsonify({"error": "Filme não encontrado"}), 404
 
-        titulo = request.form.get('titulo')
-        sinopse = request.form.get('sinopse')
-        genero = request.form.get('genero')
-        duracao = request.form.get('duracao')
-        classificacao = request.form.get('classificacao')
-        data_lancamento = request.form.get('data_lancamento')
-        trailer = request.form.get('trailer')
+        titulo = request.form.get('titulo', filmes[0])
+        sinopse = request.form.get('sinopse', filmes[1])
+        genero = request.form.get('genero', filmes[2])
+        duracao = request.form.get('duracao', filmes[3])
+        classificacao = request.form.get('classificacao', filmes[4])
+        data_lancamento = request.form.get('data_lancamento', filmes[5])
+        trailer = request.form.get('trailer', filmes[6])
         imagem = request.files.get('imagem')
 
         cur.execute('SELECT 1 FROM filme WHERE titulo = ? AND id_filme != ?', (titulo, id))
@@ -197,7 +199,11 @@ def listar_filme():
 
         filmes = cur.fetchall()
 
+        if not filmes:
+            return jsonify({"error": "Não há resultados para sua busca"}), 404
+
         return jsonify({'filmes': filmes}), 200
+
 
     except Exception as e:
         return jsonify({"error": "Erro ao listar filmes"}), 500

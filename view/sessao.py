@@ -84,7 +84,7 @@ def cadastro_sessao():
             fim_existente = inicio_existente + timedelta(minutes=duracao_existente)
 
 
-            if inicio_novo < fim_existente and fim_novo > inicio_existente:
+            if inicio_novo <= fim_existente and fim_novo >= inicio_existente:
                 return jsonify({
                     "error": "Conflito de horário com outra sessão nesta sala"
                 }), 400
@@ -169,17 +169,18 @@ def editar_sessao(id):
 
     try:
         cur = con.cursor()
-        cur.execute('SELECT 1 FROM sessao WHERE id_sessao = ?', (id,))
-        if not cur.fetchone():
+        cur.execute('SELECT id_filme, id_sala, data, horario, valor_assento FROM sessao WHERE id_sessao = ?', (id,))
+        sessao = cur.fetchone()
+        if not sessao:
             return jsonify({"error": "Sessão não encontrada"}), 404
 
         dados = request.get_json()
 
-        id_filme = dados.get('id_filme')
-        id_sala = dados.get('id_sala')
-        data = dados.get('data')
-        horario = dados.get('horario')
-        valor = dados.get('valor_assento')
+        id_filme = dados.get('id_filme', sessao[0])
+        id_sala = dados.get('id_sala', sessao[1])
+        data = dados.get('data', sessao[2])
+        horario = dados.get('horario', sessao[3])
+        valor = dados.get('valor_assento', sessao[4])
 
         cur.execute("SELECT duracao FROM filme WHERE id_filme = ?", (id_filme,))
         filme = cur.fetchone()
@@ -215,43 +216,46 @@ def editar_sessao(id):
                    SELECT s.horario, f.duracao
                    FROM sessao s
                    JOIN filme f ON s.id_filme = f.id_filme
-                   WHERE s.id_sala = ? AND s.data = ?
-               """, (id_sala, data))
+                   WHERE s.id_sessao <> ? and  s.id_sala = ? AND s.data = ?
+               """, (id, id_sala, data))
 
         sessoes = cur.fetchall()
+        print(sessoes)
 
         for sessao in sessoes:
+            print('entrei no for')
             horario_existente = sessao[0]
             duracao_existente = sessao[1]
 
             inicio_existente = converter_horario(data, horario_existente)
             fim_existente = inicio_existente + timedelta(minutes=duracao_existente)
 
-            if inicio_novo < fim_existente and fim_novo > inicio_existente:
+            if inicio_novo <= fim_existente and fim_novo >= inicio_existente:
                 return jsonify({
                     "error": "Conflito de horário com outra sessão nesta sala"
                 }), 400
 
         cur.execute("""
                    SELECT 1 FROM sessao
-                   WHERE id_filme = ? AND id_sala = ? AND data = ? AND horario = ?
-               """, (id_filme, id_sala, data, horario))
+                   WHERE id_sessao <> ? and  id_filme = ? AND id_sala = ? AND data = ? AND horario = ?
+               """, (id, id_filme, id_sala, data, horario))
 
         if cur.fetchone():
             return jsonify({"error": "Essa sessão já está cadastrada"}), 400
 
         cur.execute("""
                     UPDATE sessao SET id_filme = ?, id_sala = ?, data = ?, horario = ?, valor_assento = ?
-                    WHERE id_sala = ? """, (id_filme, id_sala, data, horario, valor, id))
+                    WHERE id_sessao = ? """, (id_filme, id_sala, data, horario, valor, id))
         con.commit()
 
         return jsonify({
             "message": "Sessão atualizada com sucesso",
-            "sala": {
-                "id_sala": id,
+            "sessao": {
+                "id_sessao":id,
+                "id_sala": id_sala,
                 "id_filme": id_filme,
-                "data": data,
-                "horario": horario,
+                "data": str(data),
+                "horario": str(horario),
                 "valor_assento": valor
             }
         }), 200
@@ -264,8 +268,6 @@ def editar_sessao(id):
     finally:
         cur.close()
 
-
-
 @sessao_blueprint.route('/listar_sessao', methods=['GET'])
 def listar_sessao():
     try:
@@ -276,26 +278,37 @@ def listar_sessao():
         data = request.args.get('data', '')
 
         cur.execute("""
-           SELECT *
-                FROM sessao
-                inner JOIN filme ON filme.ID_FILME = sessao.ID_FILME
-                inner JOIN sala ON sala.ID_sala = sessao.ID_sala
-                where UPPER(filme.TITULO) LIKE upper('%?%')
-                or UPPER(sala.NOME ) LIKE upper('%?%')
-                OR sessao.DATA = ''
+           SELECT 
+                sessao.ID_SESSAO, filme.TITULO, sala.NOME, sessao.DATA, sessao.HORARIO, sessao.VALOR_ASSENTO
+           FROM sessao
+           INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
+           INNER JOIN sala ON sala.ID_sala = sessao.ID_sala
+           WHERE UPPER(filme.TITULO) LIKE UPPER(?)
+             OR UPPER(sala.NOME) LIKE UPPER(?)
+             OR CAST(sessao.DATA AS VARCHAR(20)) LIKE ?
         """, (
             f"%{filme}%",
             f"%{sala}%",
             f"%{data}%"
         ))
 
-        sessao = cur.fetchall()
+        resultado = cur.fetchall()
 
-        return jsonify({'sessao': sessao}), 200
+        sessoes = []
+        for linha in resultado:
+            sessoes.append({
+                "id_sessao": linha[0],
+                "filme": linha[1],
+                "sala": linha[2],
+                "data": str(linha[3]),
+                "horario": str(linha[4]),
+                "valor_assento": float(linha[5])
+            })
+
+        return jsonify({"sessao": sessoes}), 200
 
     except Exception as e:
-        return jsonify({"error": "Erro ao listar sessões"}), 500
+        return jsonify({"error": f"Erro ao listar sessões: {str(e)}"}), 500
 
     finally:
         cur.close()
-

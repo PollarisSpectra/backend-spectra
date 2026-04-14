@@ -29,17 +29,10 @@ def cadastro_sala():
         if not qtd_colunas or qtd_colunas == '':
             return jsonify({"error": "Quantidade de colunas é obrigatória"}), 400
 
-        print(qtd_fileiras)
-        print(qtd_colunas)
-        print(nome)
-
-        cur.execute('SELECT 1 FROM sala WHERE nome = ?', (nome,))
+        cur.execute('SELECT 1 FROM sala WHERE lower(nome) = ?', (nome.lower(),))
         if cur.fetchone():
             return jsonify({"error": "Nome da sala já está cadastrado"}), 400
-
-        print(qtd_fileiras)
-        print(qtd_colunas)
-        print(nome)
+        print('aqui')
 
         cur.execute("""
             INSERT INTO sala(nome, qtd_fileiras, qtd_colunas)
@@ -68,26 +61,22 @@ def editar_sala(id):
 
     try:
         cur = con.cursor()
-        cur.execute('SELECT 1 FROM sala WHERE id_sala = ?', (id,))
-        if not cur.fetchone():
+        cur.execute('SELECT nome, qtd_fileiras, qtd_colunas FROM sala WHERE id_sala = ?', (id,))
+        sala = cur.fetchone()
+        if not sala:
             return jsonify({"error": "Sala não encontrada"}), 404
 
 
         dados = request.get_json()
 
-        nome = dados.get('nome')
-        qtd_fileiras = dados.get('qtd_fileiras')
-        qtd_colunas = dados.get('qtd_colunas')
+        nome = dados.get('nome', sala[0])
+        qtd_fileiras = dados.get('qtd_fileiras', sala[1])
+        qtd_colunas = dados.get('qtd_colunas', sala[2])
 
         cur.execute('SELECT 1 FROM sala WHERE nome = ? AND id_sala != ?', (nome.lower(), id))
         if cur.fetchone():
             return jsonify({"error": "Nome da sala já está cadastrado"}), 400
 
-
-        print(nome)
-        print(qtd_fileiras)
-        print(qtd_colunas)
-        print(id)
 
         cur.execute("""
                     UPDATE sala SET nome = ?, qtd_fileiras = ?, qtd_colunas = ?
@@ -180,9 +169,18 @@ def listar_sala():
 
     try:
         cur = con.cursor()
-        cur.execute('SELECT * FROM sala')
+
+        nome = request.args.get('nome', '')
+        cur.execute('SELECT * FROM sala WHERE UPPER(nome) LIKE UPPER(?)',(
+            f"%{nome}%",))
+
         salas = cur.fetchall()
+
+        if not salas:
+            return jsonify({"error": "Não há resultados para sua busca"}), 404
+
         return jsonify({'salas': salas}), 200
+
     except Exception as e:
         return jsonify({"error": f"Erro ao listar salas"}), 500
     finally:
