@@ -218,19 +218,21 @@ def buscar_filmes():
     try:
         page_size = int(request.args.get('page_size', 10))
         page_number = int(request.args.get('page_number', 1))
+        titulo = request.args.get('titulo', '')
         offset = (page_number - 1) * page_size
 
         cur = con.cursor()
 
         # Total de resultados
-        cur.execute("SELECT COUNT(*) FROM FILME")
+        cur.execute("SELECT COUNT(*) FROM FILME WHERE LOWER(titulo) LIKE LOWER(?)", (f"%{titulo}%",))
         total_results = cur.fetchone()[0]
 
         # Paginação com FIRST/SKIP
         cur.execute("""
-            SELECT FIRST ? SKIP ? * FROM FILME 
+            SELECT FIRST ? SKIP ? * FROM FILME
+            WHERE LOWER(titulo) LIKE LOWER(?)
             ORDER BY ID_FILME
-        """, (page_size, offset))
+        """, (page_size, offset, f"%{titulo}%"))
         filmes = cur.fetchall()
 
         columns = [desc[0].lower() for desc in cur.description]
