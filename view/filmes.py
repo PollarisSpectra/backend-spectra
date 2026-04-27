@@ -1,8 +1,9 @@
-import os
 from flask import Blueprint, jsonify, request, current_app
 from funcao import decodificar_token
 from database import con
+import math
 import jwt
+import os
 
 filmes_blueprint = Blueprint('filmes', __name__, url_prefix='/filmes')
 
@@ -211,3 +212,40 @@ def listar_filme():
     finally:
         cur.close()
 
+
+@filmes_blueprint.route('/filme', methods=['GET'])
+def buscar_filmes():
+    try:
+        page_size = int(request.args.get('page_size', 10))
+        page_number = int(request.args.get('page_number', 1))
+        offset = (page_number - 1) * page_size
+
+        cur = con.cursor()
+
+        # Total de resultados
+        cur.execute("SELECT COUNT(*) FROM FILME")
+        total_results = cur.fetchone()[0]
+
+        # Paginação com FIRST/SKIP
+        cur.execute("""
+            SELECT FIRST ? SKIP ? * FROM FILME 
+            ORDER BY ID_FILME
+        """, (page_size, offset))
+        filmes = cur.fetchall()
+
+        columns = [desc[0].lower() for desc in cur.description]
+        resultados = [dict(zip(columns, row)) for row in filmes]
+
+        total_pages = math.ceil(total_results / page_size) if total_results > 0 else 0
+
+        return jsonify({
+            "total_results": total_results,
+            "total_pages": total_pages,
+            "filmes": resultados
+        }), 200
+
+    except ValueError:
+        return jsonify({"error": "page_size e page_number devem ser números"}), 400
+    except Exception as e:
+        print(f"Erro: {str(e)}")
+        return jsonify({"error": "Erro interno do servidor"}), 500

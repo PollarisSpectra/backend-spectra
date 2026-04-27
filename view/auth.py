@@ -1,6 +1,8 @@
 import secrets
 
-from funcao import validar_senha, enviando_email, encode_password, gerar_token
+import jwt
+
+from funcao import validar_senha, enviando_email, encode_password, gerar_token, decodificar_token
 from flask import Blueprint, jsonify, request, make_response, current_app
 from flask_bcrypt import check_password_hash, generate_password_hash
 import datetime
@@ -74,6 +76,7 @@ def login():
             }), 200)
 
             resp.set_cookie("access_token", token,
+                                path='/',
                                 httponly=True,
                                 secure=False,
                                 samesite='Lax'
@@ -347,3 +350,27 @@ def recuperar_senha():
 
     finally:
         cur.close()
+
+@auth_blueprint.route('/me', methods=['GET'])
+def verificar():
+    token = request.cookies.get("access_token")
+
+    print(f"token: {token} tds os tokens: {request.cookies}")
+
+    if not token:
+        print(dict(request.headers))
+        return jsonify({"error": "Token não enviado"}), 401
+
+    try:
+        payload = decodificar_token(token)
+
+        return jsonify({
+            'id_usuario': payload['id_usuario'],
+            'nome': payload['nome'],
+            'email': payload['email'],
+            'tipo': payload['tipo']
+        }), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Expired token"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
