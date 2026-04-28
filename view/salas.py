@@ -37,11 +37,11 @@ def cadastro_sala():
         cur.execute("""
             INSERT INTO sala(nome, qtd_fileiras, qtd_colunas)
             VALUES(?, ?, ?)
-        """, (nome.lower(), qtd_fileiras, qtd_colunas))
+        """, (nome, qtd_fileiras, qtd_colunas))
 
         con.commit()
 
-        return jsonify({"message": "Sala cadastrada com sucesso!"}), 200
+        return jsonify({"message": "Sala cadastrada com sucesso!"}), 201
 
     except Exception as e:
         con.rollback()

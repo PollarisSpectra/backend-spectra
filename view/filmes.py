@@ -214,40 +214,60 @@ def listar_filme():
 
 
 @filmes_blueprint.route('/filme', methods=['GET'])
-def buscar_filmes():
+def listar_e_buscar_filmes():
+    cur = None
     try:
+        titulo = request.args.get('titulo', '')
+        genero = request.args.get('genero', '')
+        classificacao = request.args.get('classificacao', '')
+
         page_size = int(request.args.get('page_size', 10))
         page_number = int(request.args.get('page_number', 1))
-        titulo = request.args.get('titulo', '')
         offset = (page_number - 1) * page_size
 
         cur = con.cursor()
 
-        # Total de resultados
-        cur.execute("SELECT COUNT(*) FROM FILME WHERE LOWER(titulo) LIKE LOWER(?)", (f"%{titulo}%",))
+        sql_count = """
+            SELECT COUNT(*) FROM FILME
+            WHERE UPPER(titulo) LIKE UPPER(?)
+            AND UPPER(genero) LIKE UPPER(?)
+            AND UPPER(classificacao) LIKE UPPER(?)
+        """
+        params = (f"%{titulo}%", f"%{genero}%", f"%{classificacao}%")
+
+        cur.execute(sql_count, params)
         total_results = cur.fetchone()[0]
 
-        # Paginação com FIRST/SKIP
-        cur.execute("""
+        sql_main = """
             SELECT FIRST ? SKIP ? * FROM FILME
-            WHERE LOWER(titulo) LIKE LOWER(?)
+            WHERE UPPER(titulo) LIKE UPPER(?)
+            AND UPPER(genero) LIKE UPPER(?)
+            AND UPPER(classificacao) LIKE UPPER(?)
             ORDER BY ID_FILME
-        """, (page_size, offset, f"%{titulo}%"))
+        """
+        cur.execute(sql_main, (page_size, offset, f"%{titulo}%", f"%{genero}%", f"%{classificacao}%"))
         filmes = cur.fetchall()
 
         columns = [desc[0].lower() for desc in cur.description]
         resultados = [dict(zip(columns, row)) for row in filmes]
+
+        if not resultados and page_number == 1:
+            return jsonify({"error": "Não há resultados para sua busca"}), 404
 
         total_pages = math.ceil(total_results / page_size) if total_results > 0 else 0
 
         return jsonify({
             "total_results": total_results,
             "total_pages": total_pages,
+            "current_page": page_number,
             "filmes": resultados
         }), 200
 
     except ValueError:
-        return jsonify({"error": "page_size e page_number devem ser números"}), 400
+        return jsonify({"error": "page_size e page_number devem ser números inteiros"}), 400
     except Exception as e:
         print(f"Erro: {str(e)}")
-        return jsonify({"error": "Erro interno do servidor"}), 500
+        return jsonify({"error": "Erro interno ao processar filmes"}), 500
+    finally:
+        if cur:
+            cur.close()
