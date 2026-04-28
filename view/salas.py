@@ -29,10 +29,16 @@ def cadastro_sala():
         if not qtd_colunas or qtd_colunas == '':
             return jsonify({"error": "Quantidade de colunas é obrigatória"}), 400
 
-        cur.execute('SELECT 1 FROM sala WHERE lower(nome) = ?', (nome.lower(),))
+        nome_normalizado = nome.lower().replace(" ", "")
+
+        cur.execute("""
+            SELECT 1 
+            FROM sala 
+            WHERE REPLACE(LOWER(nome), ' ', '') = ?
+        """, (nome_normalizado,))
+
         if cur.fetchone():
             return jsonify({"error": "Nome da sala já está cadastrado"}), 400
-        print('aqui')
 
         cur.execute("""
             INSERT INTO sala(nome, qtd_fileiras, qtd_colunas)
@@ -73,7 +79,14 @@ def editar_sala(id):
         qtd_fileiras = dados.get('qtd_fileiras', sala[1])
         qtd_colunas = dados.get('qtd_colunas', sala[2])
 
-        cur.execute('SELECT 1 FROM sala WHERE nome = ? AND id_sala != ?', (nome.lower(), id))
+        nome_normalizado = nome.lower().replace(" ", "")
+
+        cur.execute("""
+            SELECT 1 
+            FROM sala 
+            WHERE REPLACE(LOWER(nome), ' ', '') = ?
+        """, (nome_normalizado,))
+
         if cur.fetchone():
             return jsonify({"error": "Nome da sala já está cadastrado"}), 400
 
@@ -154,7 +167,6 @@ def listar_sala():
 
     try:
         payload = decodificar_token(token)
-        id_usuario = payload['id_usuario']
         tipo = payload['tipo']
 
         if tipo == 1:
@@ -162,26 +174,90 @@ def listar_sala():
                 "error": "Acesso negado",
                 "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
             }), 403
+
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
         return jsonify({"error": "Token invalid"}), 401
 
+    cur = None
+
     try:
         cur = con.cursor()
 
         nome = request.args.get('nome', '')
-        cur.execute('SELECT * FROM sala WHERE UPPER(nome) LIKE UPPER(?)',(
-            f"%{nome}%",))
+        id_sala = request.args.get('id_sala')
 
-        salas = cur.fetchall()
+        if id_sala:
+            cur.execute("""
+                SELECT id_sala, nome, qtd_fileiras, qtd_colunas
+                FROM sala
+                WHERE id_sala = ?
+            """, (id_sala,))
 
-        if not salas:
-            return jsonify({"error": "Não há resultados para sua busca"}), 404
+            resultado = cur.fetchone()
 
-        return jsonify({'salas': salas}), 200
+            if not resultado:
+                return jsonify({"error": "Sala não encontrada"}), 404
+
+            sala = {
+                "id_sala": resultado[0],
+                "nome": resultado[1],
+                "qtd_fileiras": resultado[2],
+                "qtd_colunas": resultado[3]
+            }
+
+            return jsonify({
+                "salas": [sala],
+                "total_pages": 1
+            }), 200
+
+        page_number = int(request.args.get('page_number', 1))
+        page_size = int(request.args.get('page_size', 10))
+
+        offset = (page_number - 1) * page_size
+
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM sala
+            WHERE UPPER(nome) LIKE UPPER(?)
+        """, (f"%{nome}%",))
+
+        total_registros = cur.fetchone()[0]
+        total_pages = (total_registros + page_size - 1) // page_size
+
+        cur.execute("""
+            SELECT id_sala, nome, qtd_fileiras, qtd_colunas
+            FROM sala
+            WHERE UPPER(nome) LIKE UPPER(?)
+            ORDER BY id_sala
+            ROWS ? TO ?
+        """, (
+            f"%{nome}%",
+            offset + 1,
+            offset + page_size
+        ))
+
+        resultados = cur.fetchall()
+
+        salas = []
+
+        for sala in resultados:
+            salas.append({
+                "id_sala": sala[0],
+                "nome": sala[1],
+                "qtd_fileiras": sala[2],
+                "qtd_colunas": sala[3]
+            })
+
+        return jsonify({
+            "salas": salas,
+            "total_pages": total_pages
+        }), 200
 
     except Exception as e:
-        return jsonify({"error": f"Erro ao listar salas"}), 500
+        return jsonify({"error": "Erro ao listar salas"}), 500
+
     finally:
-        cur.close()
+        if cur:
+            cur.close()
