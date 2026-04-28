@@ -1,4 +1,5 @@
-from flask import Blueprint, jsonify, request, current_app
+import fdb.fbcore
+from flask import Blueprint, jsonify, request, current_app, send_from_directory
 from funcao import decodificar_token
 from database import con
 import math
@@ -171,6 +172,7 @@ def excluir_filme(id):
         return jsonify({"message": "Filme excluído com sucesso"}), 200
 
     except Exception as e:
+        print("Erro ao excluir filme: ", str(e))
         return jsonify({"error": f"Erro ao excluir filme."}), 500
 
     finally:
@@ -251,6 +253,14 @@ def listar_e_buscar_filmes():
         columns = [desc[0].lower() for desc in cur.description]
         resultados = [dict(zip(columns, row)) for row in filmes]
 
+        for filme in resultados:
+            id_filme = filme.get('id_filme')
+            caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes", f"{id_filme}.jpg")
+            if os.path.exists(caminho):
+                filme['imagem_url'] = f"/imagem_filme/{id_filme}.jpg"
+            else:
+                filme['imagem_url'] = None
+
         if not resultados and page_number == 1:
             return jsonify({"error": "Não há resultados para sua busca"}), 404
 
@@ -271,3 +281,40 @@ def listar_e_buscar_filmes():
     finally:
         if cur:
             cur.close()
+
+@filmes_blueprint.route('/<int:id>', methods=['GET'])
+def buscar_filme(id):
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token não enviado"}), 401
+
+    try:
+        payload = decodificar_token(token)
+
+        cur = con.cursor()
+        cur.execute("SELECT * FROM FILME WHERE id_filme = ?", (id,))
+
+        resultado = cur.fetchone()
+
+        if not resultado:
+            return jsonify({"error": "Filme não encontrado"}), 404
+
+        columns = [desc[0].lower() for desc in cur.description]
+        filme = dict(zip(columns, resultado))
+
+        cur.close()
+
+        return jsonify({"filme": filme}), 200
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Expired token"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+    except Exception as e:
+        return jsonify({"error": "Erro interno no servidor"}), 500
+
+@filmes_blueprint.route('/imagem_filme/<path:filename>')
+def servir_imagem_filme(filename):
+    caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes")
+    print(caminho)
+    return send_from_directory(caminho, filename)
