@@ -169,7 +169,7 @@ def editar_sessao(id):
 
     try:
         cur = con.cursor()
-        cur.execute('SELECT id_filme, id_sala, data, horario, valor_assento FROM sessao WHERE id_sessao = ?', (id,))
+        cur.execute('SELECT id_filme, id_sala, data, horario, valor_assento, status FROM sessao WHERE id_sessao = ?', (id,))
         sessao = cur.fetchone()
         if not sessao:
             return jsonify({"error": "Sessão não encontrada"}), 404
@@ -181,6 +181,7 @@ def editar_sessao(id):
         data = dados.get('data', sessao[2])
         horario = dados.get('horario', sessao[3])
         valor = dados.get('valor_assento', sessao[4])
+        status = dados.get('status', sessao[5])
 
         cur.execute("SELECT duracao FROM filme WHERE id_filme = ?", (id_filme,))
         filme = cur.fetchone()
@@ -190,7 +191,7 @@ def editar_sessao(id):
 
         duracao = filme[0]
 
-        cur.execute("SELECT 1 FROM sala WHERE id_sala = ?", (id_sala,))
+        cur.execute("SELECT 1 FROM sala s WHERE id_sala = ?", (id_sala,))
         if not cur.fetchone():
             return jsonify({"error": "Sala não encontrada"}), 404
 
@@ -199,13 +200,13 @@ def editar_sessao(id):
         except ValueError:
             return jsonify({"error": "Formato de data ou horário inválido"}), 400
 
-        if data_hora < datetime.now():
-            return jsonify({"error": "Não é possível cadastrar sessão no passado"}), 400
+        data_hora_antiga = converter_horario(sessao[2], sessao[3])
+
+        if (data_hora_antiga != data_hora) and (data_hora < datetime.now()):
+            return jsonify({"error": "Não é possível editar sessão no passado"}), 400
 
         try:
             valor = float(dados.get('valor_assento', 0))
-
-            print(valor)
         except:
             return jsonify({"error": "Valor do assento inválido"}), 400
 
@@ -244,8 +245,8 @@ def editar_sessao(id):
             return jsonify({"error": "Essa sessão já está cadastrada"}), 400
 
         cur.execute("""
-                    UPDATE sessao SET id_filme = ?, id_sala = ?, data = ?, horario = ?, valor_assento = ?
-                    WHERE id_sessao = ? """, (id_filme, id_sala, data, horario, valor, id))
+                    UPDATE sessao SET id_filme = ?, id_sala = ?, data = ?, horario = ?, valor_assento = ?, status = ?
+                    WHERE id_sessao = ? """, (id_filme, id_sala, data, horario, valor, status, id))
         con.commit()
 
         return jsonify({
@@ -261,6 +262,7 @@ def editar_sessao(id):
         }), 200
 
     except Exception as e:
+        print(str(e))
         return jsonify({
             "message": f"Erro ao atualizar sessão.{e}"
         }), 500
@@ -306,7 +308,8 @@ def listar_sessao():
                     sala.NOME,
                     sessao.DATA,
                     sessao.HORARIO,
-                    sessao.VALOR_ASSENTO
+                    sessao.VALOR_ASSENTO,
+                    sessao.STATUS
                 FROM sessao
                 INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
                 INNER JOIN sala ON sala.ID_SALA = sessao.ID_SALA
@@ -332,7 +335,8 @@ def listar_sessao():
                 "sala": linha[4],
                 "data": str(linha[5]),
                 "horario": str(linha[6]),
-                "valor_assento": float(linha[7])
+                "valor_assento": float(linha[7]),
+                "status": str(linha[8])
             })
 
         return jsonify({"sessao": sessoes}), 200
