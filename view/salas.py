@@ -84,8 +84,9 @@ def editar_sala(id):
         cur.execute("""
             SELECT 1 
             FROM sala 
-            WHERE REPLACE(LOWER(nome), ' ', '') = ?
-        """, (nome_normalizado,))
+            WHERE REPLACE(LOWER(nome), ' ', '') = ? 
+              AND id_sala != ?
+        """, (nome_normalizado, id))
 
         if cur.fetchone():
             return jsonify({"error": "Nome da sala já está cadastrado"}), 400
