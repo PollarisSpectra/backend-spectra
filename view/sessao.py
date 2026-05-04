@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import os
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request, current_app, send_from_directory
 from funcao import decodificar_token, converter_horario
 from database import con
 import jwt
@@ -203,7 +203,7 @@ def editar_sessao(id):
             return jsonify({"error": "Não é possível cadastrar sessão no passado"}), 400
 
         try:
-            valor = float(valor.replace(',', '.'))
+            valor = float(dados.get('valor_assento', 0))
 
             print(valor)
         except:
@@ -270,39 +270,69 @@ def editar_sessao(id):
 
 @sessao_blueprint.route('/listar_sessao', methods=['GET'])
 def listar_sessao():
+    cur = None
+
     try:
         cur = con.cursor()
 
+        id_sessao = request.args.get('id_sessao')
         filme = request.args.get('filme', '')
         sala = request.args.get('sala', '')
         data = request.args.get('data', '')
 
-        cur.execute("""
-           SELECT 
-                sessao.ID_SESSAO, filme.TITULO, sala.NOME, sessao.DATA, sessao.HORARIO, sessao.VALOR_ASSENTO
-           FROM sessao
-           INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
-           INNER JOIN sala ON sala.ID_sala = sessao.ID_sala
-           WHERE UPPER(filme.TITULO) LIKE UPPER(?)
-             OR UPPER(sala.NOME) LIKE UPPER(?)
-             OR CAST(sessao.DATA AS VARCHAR(20)) LIKE ?
-        """, (
-            f"%{filme}%",
-            f"%{sala}%",
-            f"%{data}%"
-        ))
+        if id_sessao:
+            cur.execute("""
+                SELECT 
+                    sessao.ID_SESSAO,
+                    sessao.ID_FILME,
+                    sessao.ID_SALA,
+                    filme.TITULO,
+                    sala.NOME,
+                    sessao.DATA,
+                    sessao.HORARIO,
+                    sessao.VALOR_ASSENTO
+                FROM sessao
+                INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
+                INNER JOIN sala ON sala.ID_SALA = sessao.ID_SALA
+                WHERE sessao.ID_SESSAO = ?
+            """, (id_sessao,))
+        else:
+            cur.execute("""
+                SELECT 
+                    sessao.ID_SESSAO,
+                    sessao.ID_FILME,
+                    sessao.ID_SALA,
+                    filme.TITULO,
+                    sala.NOME,
+                    sessao.DATA,
+                    sessao.HORARIO,
+                    sessao.VALOR_ASSENTO
+                FROM sessao
+                INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
+                INNER JOIN sala ON sala.ID_SALA = sessao.ID_SALA
+                WHERE UPPER(filme.TITULO) LIKE UPPER(?)
+                   OR UPPER(sala.NOME) LIKE UPPER(?)
+                   OR CAST(sessao.DATA AS VARCHAR(20)) LIKE ?
+            """, (
+                f"%{filme}%",
+                f"%{sala}%",
+                f"%{data}%"
+            ))
 
         resultado = cur.fetchall()
 
         sessoes = []
+
         for linha in resultado:
             sessoes.append({
                 "id_sessao": linha[0],
-                "filme": linha[1],
-                "sala": linha[2],
-                "data": str(linha[3]),
-                "horario": str(linha[4]),
-                "valor_assento": float(linha[5])
+                "id_filme": linha[1],
+                "id_sala": linha[2],
+                "filme": linha[3],
+                "sala": linha[4],
+                "data": str(linha[5]),
+                "horario": str(linha[6]),
+                "valor_assento": float(linha[7])
             })
 
         return jsonify({"sessao": sessoes}), 200
@@ -311,4 +341,11 @@ def listar_sessao():
         return jsonify({"error": f"Erro ao listar sessões: {str(e)}"}), 500
 
     finally:
-        cur.close()
+        if cur:
+            cur.close()
+
+@sessao_blueprint.route('/imagem_filme/<path:filename>')
+def servir_imagem_filme(filename):
+    caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes")
+    print(caminho)
+    return send_from_directory(caminho, filename)
