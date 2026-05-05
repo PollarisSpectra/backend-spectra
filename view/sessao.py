@@ -336,7 +336,7 @@ def listar_sessao():
                 "data": str(linha[5]),
                 "horario": str(linha[6]),
                 "valor_assento": float(linha[7]),
-                "status": str(linha[8])
+                "status": str(linha[8]) if len(linha) > 8 else None
             })
 
         return jsonify({"sessao": sessoes}), 200
