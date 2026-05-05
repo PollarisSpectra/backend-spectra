@@ -10,12 +10,14 @@ from view.usuarios import usuarios_blueprint
 from view.filmes import filmes_blueprint
 from view.salas import salas_blueprint
 from view.sessao import sessao_blueprint
+from view.reservas import reservas_bp
 
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(usuarios_blueprint)
 app.register_blueprint(filmes_blueprint)
 app.register_blueprint(salas_blueprint)
 app.register_blueprint(sessao_blueprint)
+app.register_blueprint(reservas_bp)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
