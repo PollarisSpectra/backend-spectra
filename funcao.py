@@ -135,3 +135,55 @@ def converter_horario(data, horario):
         return datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M:%S")
     except ValueError:
         return datetime.strptime(f"{data} {horario}", "%Y-%m-%d %H:%M")
+
+def format_field(id, value):
+    size = f"{len(value):02d}"
+    return f"{id}{size}{value}"
+
+
+def crc16(payload):
+    polinomio = 0x1021
+    resultado = 0xFFFF
+
+    for c in payload:
+        resultado ^= (ord(c) << 8)
+        for _ in range(8):
+            if (resultado & 0x8000):
+                resultado = (resultado << 1) ^ polinomio
+            else:
+                resultado <<= 1
+            resultado &= 0xFFFF
+
+    return f"{resultado:04X}"
+
+def gerar_payload_pix(chave, nome, cidade, valor, txid="***"):
+    payload = ""
+
+    payload += format_field("00", "01")
+
+    merchant_account = ""
+    merchant_account += format_field("00", "br.gov.bcb.pix")
+    merchant_account += format_field("01", chave)
+
+    payload += format_field("26", merchant_account)
+
+    payload += format_field("52", "0000")
+    payload += format_field("53", "986")
+
+    if valor:
+        payload += format_field("54", f"{valor:.2f}")
+
+    payload += format_field("58", "BR")
+    payload += format_field("59", nome[:25])
+    payload += format_field("60", cidade[:15])
+
+    additional = format_field("05", txid)
+    payload += format_field("62", additional)
+
+    payload += "6304"
+
+    crc = crc16(payload)
+
+    payload += crc
+
+    return payload
