@@ -269,7 +269,6 @@ def editar_sessao(id):
 
     finally:
         cur.close()
-
 @sessao_blueprint.route('/listar_sessao', methods=['GET'])
 def listar_sessao():
     cur = None
@@ -281,6 +280,7 @@ def listar_sessao():
         filme = request.args.get('filme', '')
         sala = request.args.get('sala', '')
         data = request.args.get('data', '')
+        categoria = request.args.get('categoria', '')
 
         if id_sessao:
             cur.execute("""
@@ -292,7 +292,9 @@ def listar_sessao():
                     sala.NOME,
                     sessao.DATA,
                     sessao.HORARIO,
-                    sessao.VALOR_ASSENTO
+                    sessao.VALOR_ASSENTO,
+                    sessao.STATUS,
+                    filme.GENERO
                 FROM sessao
                 INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
                 INNER JOIN sala ON sala.ID_SALA = sessao.ID_SALA
@@ -309,20 +311,28 @@ def listar_sessao():
                     sessao.DATA,
                     sessao.HORARIO,
                     sessao.VALOR_ASSENTO,
-                    sessao.STATUS
+                    sessao.STATUS,
+                    filme.GENERO
                 FROM sessao
                 INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
                 INNER JOIN sala ON sala.ID_SALA = sessao.ID_SALA
                 WHERE UPPER(filme.TITULO) LIKE UPPER(?)
-                   OR UPPER(sala.NOME) LIKE UPPER(?)
-                   OR CAST(sessao.DATA AS VARCHAR(20)) LIKE ?
+                AND UPPER(sala.NOME) LIKE UPPER(?)
+                AND CAST(sessao.DATA AS VARCHAR(20)) LIKE ?
+                AND UPPER(filme.GENERO) LIKE UPPER(?)
             """, (
                 f"%{filme}%",
                 f"%{sala}%",
-                f"%{data}%"
+                f"%{data}%",
+                f"%{categoria}%"
             ))
 
         resultado = cur.fetchall()
+
+        if not resultado:
+            return jsonify({
+                "error": "Não há sessões relacionadas à sua busca"
+            }), 404
 
         sessoes = []
 
@@ -336,7 +346,8 @@ def listar_sessao():
                 "data": str(linha[5]),
                 "horario": str(linha[6]),
                 "valor_assento": float(linha[7]),
-                "status": str(linha[8])
+                "status": str(linha[8]),
+                "categoria": linha[9]
             })
 
         return jsonify({"sessao": sessoes}), 200
