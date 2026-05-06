@@ -5,7 +5,7 @@ import io
 
 pix_blueprint = Blueprint('pix_blueprint', __name__, url_prefix='/pix')
 
-@pix_blueprint.route("/pix-qrcode")
+@pix_blueprint.route("/")
 def pix_qrcode():
     data = request.json
     chave = data.get("chave")
