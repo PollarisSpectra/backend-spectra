@@ -10,15 +10,17 @@ from view.usuarios import usuarios_blueprint
 from view.filmes import filmes_blueprint
 from view.salas import salas_blueprint
 from view.sessao import sessao_blueprint
-from view.reservas import reservas_bp
+from view.reserva import reserva_blueprint
 from view.pix import pix_blueprint
 from view.empresa import empresa_blueprint
+from view.reservas import reservas_bp
 
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(usuarios_blueprint)
 app.register_blueprint(filmes_blueprint)
 app.register_blueprint(salas_blueprint)
 app.register_blueprint(sessao_blueprint)
+app.register_blueprint(reserva_blueprint)
 app.register_blueprint(reservas_bp)
 app.register_blueprint(pix_blueprint)
 app.register_blueprint(empresa_blueprint)

@@ -15,8 +15,8 @@ auth_blueprint = Blueprint('auth', __name__, url_prefix='/auth')
 
 @auth_blueprint.route('/login', methods=['POST'])
 def login():
-    cursor = con.cursor()
     try:
+        cursor = con.cursor()
         dados = request.get_json()
         email = dados.get('email').lower()
         senha = dados.get('senha')
