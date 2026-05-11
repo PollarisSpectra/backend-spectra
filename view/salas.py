@@ -5,6 +5,97 @@ import jwt
 
 salas_blueprint = Blueprint('salas', __name__, url_prefix='/salas')
 
+# busca dados da sala pelo seu id
+@salas_blueprint.route('/<int:id>', methods=['GET'])
+def sala(id):
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        payload = decodificar_token(token)
+
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
+    cur = None
+
+    try:
+        cur = con.cursor()
+
+        cur.execute("""
+            SELECT id_sala, nome, qtd_fileiras, qtd_colunas
+            FROM sala
+            WHERE id_sala = ?
+        """, (id,))
+
+        resultado = cur.fetchone()
+
+        if not resultado:
+            return jsonify({"error": "Sala não encontrada"}), 404
+
+        return jsonify({
+            "id_sala": resultado[0],
+            "nome": resultado[1],
+            "qtd_fileiras": resultado[2],
+            "qtd_colunas": resultado[3]
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": "Erro ao buscar sala"}), 500
+
+    finally:
+        if cur:
+            cur.close()
+
+@salas_blueprint.route('/<int:id>/assentos', methods=['GET'])
+def assentos_sala(id):
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    try:
+        payload = decodificar_token(token)
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Token invalid"}), 401
+
+    cur = None
+
+    try:
+        cur = con.cursor()
+
+        cur.execute('SELECT 1 FROM sala WHERE id_sala = ?', (id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Sala não encontrada"}), 404
+
+        cur.execute("""
+            SELECT id_assento_sala, assento
+            FROM assento_sala
+            WHERE id_sala = ?
+            ORDER BY assento
+        """, (id,))
+
+        assentos = [
+            {
+                "id_assento_sala": row[0],
+                "codigo": row[1]
+            }
+            for row in cur.fetchall()
+        ]
+
+        return jsonify({"assentos": assentos}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar assentos: {str(e)}"}), 500
+
+    finally:
+        if cur:
+            cur.close()
+
 @salas_blueprint.route('/cadastro_sala', methods=['POST'])
 def cadastro_sala():
     token = request.cookies.get('access_token')

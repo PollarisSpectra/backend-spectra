@@ -111,6 +111,42 @@ def criar_reserva():
     except Exception as e:
         con.rollback()
         return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if cur:
+            cur.close()
+
+@reservas_bp.route('/pagamento/<int:id>', methods=["POST"])
+def pagamento(id):
+    try:
+        cookie = request.cookies.get('access_token')
+
+        if not cookie:
+            return jsonify({"error": "Token de autenticacao necessario"}), 401
+
+        payload = decodificar_token(cookie)
+
+        if not id:
+            return jsonify({"error": "Insira o id da reserva"}), 400
+
+        cur = con.cursor()
+        cur.execute("""
+        UPDATE RESERVA r
+        SET r.STATUS = '0'
+        WHERE r.ID_RESERVA = ?
+        """, (id,))
+
+        con.commit()
+
+        return jsonify({"message": "Reserva confirmada com sucesso"})
+    except jwt.ExpiredSignatureError as e:
+        return jsonify({"error": "Expired token"}), 401
+    except jwt.InvalidTokenError as e:
+        return jsonify({"error": "Invalid token"}), 401
+    except Exception:
+        return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if cur:
+            cur.close()
 
 # Rota de exclusão de reserva
 @reservas_bp.route("/<int:id>", methods=["DELETE"])
