@@ -1,3 +1,4 @@
+import datetime
 import jwt
 from flask import Blueprint, jsonify, request
 from database import con
@@ -61,7 +62,7 @@ def criar_reserva():
         cur.execute("""
         SELECT * FROM RESERVA_ASSENTO ra
         LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA
-        WHERE r.ID_SESSAO = ?;
+        WHERE r.ID_SESSAO = ?
         """, (id_sessao,))
 
         columns = [desc[0].lower() for desc in cur.description]
@@ -71,6 +72,35 @@ def criar_reserva():
             if reserva['id_assento_sala'] in assentos:
                 return jsonify({"error": f"Poltrona(s) ja reservada(s)"}), 400
 
+        # obtendo o valor do assento para a sessão
+        cur.execute("SELECT valor_assento FROM sessao WHERE id_sessao = ?", (id_sessao,))
+        valor_assento = cur.fetchone()[0]
+
+        # criando reserva com valor de assento
+        cur.execute("""
+        INSERT INTO reserva (id_promocao, id_usuario, id_sessao, valortotal, desconto, status, datareserva)
+        VALUES (?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP)
+        RETURNING id_reserva
+        """, (None, id_usuario, id_sessao, (len(assentos) * valor_assento), 3))
+
+        # conferindo se a reserva foi criada
+        id_reserva_criada = cur.fetchone()[0]
+        if not id_reserva_criada:
+            raise Exception("Internal Server Error")
+
+        dados = [
+            (id_reserva_criada, id_assento)
+            for id_assento in assentos
+        ]
+
+        # criando cada reserva_assento
+        cur.executemany("""
+        INSERT INTO reserva_assento (id_reserva, id_assento_sala)
+        VALUES (?, ?)
+        """, dados)
+
+        con.commit()
+
         return jsonify({"message": "Reserva criada com sucesso"})
     except jwt.ExpiredSignatureError as e:
         return jsonify({"error": "Expired token"}), 401
@@ -79,7 +109,7 @@ def criar_reserva():
     except ValueError:
         return jsonify({"error": "Verifique o tipo dos campos"}), 400
     except Exception as e:
-        print(str(e))
+        con.rollback()
         return jsonify({"error": "Internal Server Error"}), 500
 
 # Rota de exclusão de reserva
@@ -91,6 +121,8 @@ def excluir_reserva(id):
 
         if not cur.fetchone():
             return jsonify({"error": "Reserva nao encontrada"}), 404
+
+        # falta validar se tem violação de FK aqui
 
         cur.execute("DELETE FROM reserva WHERE id_reserva = ?", (id,))
         con.commit()
