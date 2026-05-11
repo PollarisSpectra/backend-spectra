@@ -358,10 +358,109 @@ def listar_sessao():
     finally:
         if cur:
             cur.close()
-            
 
 @sessao_blueprint.route('/imagem_filme/<path:filename>')
 def servir_imagem_filme(filename):
     caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes")
     print(caminho)
     return send_from_directory(caminho, filename)
+
+@sessao_blueprint.route('/sala_sessao/<int:id_sessao>', methods=['GET'])
+def sala_sessao(id_sessao):
+    cur = None
+
+    try:
+        cur = con.cursor()
+
+        cur.execute("""
+            SELECT 
+                sessao.ID_SESSAO,
+                sessao.DATA,
+                sessao.HORARIO,
+                filme.ID_FILME,
+                filme.TITULO,
+                filme.GENERO,
+                filme.DURACAO,
+                filme.SINOPSE,
+                sala.ID_SALA,
+                sala.NOME,
+                sala.QTD_FILEIRAS,
+                sala.QTD_COLUNAS
+            FROM sessao
+            INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
+            INNER JOIN sala ON sala.ID_SALA = sessao.ID_SALA
+            WHERE sessao.ID_SESSAO = ?
+        """, (id_sessao,))
+
+        resultado = cur.fetchone()
+
+        if not resultado:
+            return jsonify({"error": "Sessão não encontrada"}), 404
+
+        id_filme = resultado[3]
+        id_sala = resultado[8]
+        qtd_fileiras = int(resultado[10])
+        qtd_colunas = int(resultado[11])
+
+        # cur.execute("""
+        #     SELECT *, a.ID_ASSENTO_SALA
+        #     FROM RESERVA_ASSENTO ra
+        #     INNER JOIN ASSENTO_SALA a
+        #         ON a.ID_ASSENTO_SALA = ra.ID_ASSENTO_SALA
+        #     INNER JOIN RESERVA r
+        #         ON r.ID_RESERVA = ra.ID_RESERVA
+        #     WHERE r.ID_SESSAO = ?
+        # """, (id_sessao,))
+        #
+        # reservados_db = cur.fetchall()
+        #
+        # print(reservados_db)
+        #
+        # reservados = []
+        #
+        # for item in reservados_db:
+        #     reservados.append(f"{item[0]}{item[1]}")
+        #
+        # assentos = []
+        #
+        # for i in range(qtd_fileiras):
+        #     fileira = chr(65 + i)
+        #
+        #     for numero in range(1, qtd_colunas + 1):
+        #         codigo = f"{fileira}{numero}"
+        #
+        #         assentos.append({
+        #             "fileira": fileira,
+        #             "numero": numero,
+        #             "codigo": codigo,
+        #             "reservado": codigo in reservados
+        #         })
+
+        return jsonify({
+            "filme": {
+                "id_filme": id_filme,
+                "titulo": resultado[4],
+                "genero": resultado[5],
+                "duracao": resultado[6],
+                "sinopse": resultado[7],
+                "imagem_url": f"/imagem_filme/{id_filme}.jpg",
+                "data": str(resultado[1]),
+                "horario": str(resultado[2])
+            },
+            "sala": {
+                "id_sala": id_sala,
+                "nome": resultado[9],
+                "qtd_fileiras": qtd_fileiras,
+                "qtd_colunas": qtd_colunas
+            },
+            # "assentos": assentos
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "error": f"Erro ao buscar sala da sessão: {str(e)}"
+        }), 500
+
+    finally:
+        if cur:
+            cur.close()
