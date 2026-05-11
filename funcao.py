@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
+from email.message import EmailMessage
 
-from flask import current_app
+from flask import current_app, render_template
 from flask_bcrypt import generate_password_hash
 import random
 import smtplib
@@ -33,21 +34,31 @@ def validar_senha(senha: str):
     return True
 
 
-def enviando_email(destinatario, assunto, mensagem):
+def enviando_email(destinatario, assunto, html_pronto):
     try:
         user = "sophia.biliattoo@gmail.com"
         senha = "eahu tqrv kaxi jsnb"
 
-        msg = MIMEText(mensagem)
+        msg = EmailMessage()
         msg['Subject'] = assunto
         msg['From'] = user
         msg['To'] = destinatario
 
-        server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-        server.starttls()
-        server.login(user, senha)
-        server.send_message(msg)
-        server.quit()
+        # Aqui usamos o HTML que já veio renderizado da rota
+        msg.set_content("Para ver esta mensagem, use um cliente de e-mail com suporte a HTML.")
+        msg.add_alternative(html_pronto, subtype='html')
+
+        # server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+        # server.starttls()
+        # server.login(user, senha)
+        # server.send_message(msg)
+        # server.quit()
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+            server.login(user, senha)
+            server.send_message(msg)
+
+        print("E-mail enviado com sucesso via Thread!")
     except Exception as e:
         print("Houve um erro ao enviar email: " + str(e))
 

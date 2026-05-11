@@ -3,7 +3,7 @@ import secrets
 import jwt
 
 from funcao import validar_senha, enviando_email, encode_password, gerar_token, decodificar_token
-from flask import Blueprint, jsonify, request, make_response, current_app
+from flask import Blueprint, jsonify, request, make_response, current_app, render_template
 from flask_bcrypt import check_password_hash, generate_password_hash
 import datetime
 from database import con
@@ -177,9 +177,12 @@ def cadastro():
             imagem.save(caminho_imagem)
         try:
             assunto = 'Confirmação de Email'
-            mensagem = f'Confirme aqui seu email: {codigo}'
-            thread = threading.Thread(target=enviando_email,
-                                      args=(email, assunto, mensagem))
+            info = { 'codigo': codigo, 'nome': nome }
+            html_renderizado = render_template('emails/enviar_codigo.html', **info)
+            thread = threading.Thread(
+                target=enviando_email,
+                args=(email, assunto, html_renderizado)
+            )
             thread.start()
             return jsonify({"mensagem": "Email enviado com sucesso!"}), 200
         except Exception as e:

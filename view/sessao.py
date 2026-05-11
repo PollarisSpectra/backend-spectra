@@ -358,6 +358,7 @@ def listar_sessao():
     finally:
         if cur:
             cur.close()
+            
 
 @sessao_blueprint.route('/imagem_filme/<path:filename>')
 def servir_imagem_filme(filename):
