@@ -33,10 +33,10 @@ def cadastro_empresa():
         rua = (request.form.get('rua') or '').strip()
         numero = (request.form.get('numero') or '').strip()
         cidade = (request.form.get('cidade') or '').strip()
-        uf = (request.form.get('uf') or '').strip()
 
         chave_pix = (request.form.get('chave_pix') or '').strip()
         cor = (request.form.get('cor') or '').strip()
+        telefone = (request.form.get('telefone') or '').strip()
 
         imagem = request.files.get('imagem')
 
@@ -55,9 +55,10 @@ def cadastro_empresa():
                 NUMERO,
                 CIDADE,
                 CHAVE_PIX,
-                COR
+                COR,
+                TELEFONE
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING ID_EMPRESA
         """, (
             nome_fantasia,
@@ -68,7 +69,8 @@ def cadastro_empresa():
             numero,
             cidade,
             chave_pix,
-            cor
+            cor,
+            telefone
         ))
 
         id_empresa = cur.fetchone()[0]
@@ -95,60 +97,6 @@ def cadastro_empresa():
     finally:
         cur.close()
 
-
-@empresa_blueprint.route('/listar_empresas', methods=['GET'])
-def listar_empresas():
-    token = request.cookies.get('access_token')
-
-    if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
-
-    cur = con.cursor()
-
-    try:
-        cur.execute("""
-            SELECT 
-                ID_EMPRESA,
-                NOME_FANTASIA,
-                RAZAO_SOCIAL,
-                CNPJ,
-                BAIRRO,
-                RUA,
-                NUMERO,
-                CIDADE,
-                CHAVE_PIX,
-                COR
-            FROM EMPRESA
-        """)
-
-        empresas = cur.fetchall()
-
-        resultado = []
-
-        for i in empresas:
-            resultado.append({
-                "id_empresa": i[0],
-                "nome_fantasia": i[1],
-                "razao_social": i[2],
-                "cnpj": i[3],
-                "bairro": i[4],
-                "rua": i[5],
-                "numero": i[6],
-                "cidade": i[7],
-                "chave_pix": i[8],
-                "telefone": i[9],
-                "cor": i[9]
-            })
-
-        return jsonify({"empresas": resultado}), 200
-
-    except Exception as e:
-        return jsonify({"error": f"Erro ao listar empresas: {str(e)}"}), 500
-
-    finally:
-        cur.close()
-
-
 @empresa_blueprint.route('/editar_empresa/<int:id>', methods=['PUT'])
 def editar_empresa(id):
     token = request.cookies.get('access_token')
@@ -170,11 +118,31 @@ def editar_empresa(id):
         rua = (request.form.get('rua') or '').strip()
         numero = (request.form.get('numero') or '').strip()
         cidade = (request.form.get('cidade') or '').strip()
-        uf = (request.form.get('uf') or '').strip()
         chave_pix = (request.form.get('chave_pix') or '').strip()
         cor = (request.form.get('cor') or '').strip()
+        telefone = (request.form.get('telefone') or '').strip()
 
         imagem = request.files.get('imagem')
+
+        if cnpj:
+            cur.execute("""
+                SELECT 1 
+                FROM EMPRESA 
+                WHERE CNPJ = ? AND ID_EMPRESA != ?
+            """, (cnpj, id))
+
+            if cur.fetchone():
+                return jsonify({"error": "CNPJ já pertence a outra empresa"}), 400
+
+        if nome_fantasia:
+            cur.execute("""
+                SELECT 1 
+                FROM EMPRESA 
+                WHERE NOME_FANTASIA = ? AND ID_EMPRESA != ?
+            """, (nome_fantasia, id))
+
+            if cur.fetchone():
+                return jsonify({"error": "Nome fantasia já existe"}), 400
 
         cur.execute("""
             UPDATE EMPRESA SET
@@ -186,7 +154,8 @@ def editar_empresa(id):
                 NUMERO = ?,
                 CIDADE = ?,
                 CHAVE_PIX = ?,
-                COR = ?
+                COR = ?,
+                TELEFONE = ?
             WHERE ID_EMPRESA = ?
         """, (
             nome_fantasia,
@@ -198,6 +167,7 @@ def editar_empresa(id):
             cidade,
             chave_pix,
             cor,
+            telefone,
             id
         ))
 
@@ -215,6 +185,164 @@ def editar_empresa(id):
 
     except Exception as e:
         return jsonify({"error": f"Erro ao editar empresa: {str(e)}"}), 500
+
+    finally:
+        cur.close()
+
+
+@empresa_blueprint.route('/cadastro_cores', methods=['POST'])
+def cadastro_cores():
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    cur = con.cursor()
+
+    try:
+        cor_botao = (request.form.get('cor_botao') or '').strip()
+        cor_principal = (request.form.get('cor_principal') or '').strip()
+        cor_alerta = (request.form.get('cor_alerta') or '').strip()
+        cor_fundo = (request.form.get('cor_fundo') or '').strip()
+        cor_secundaria = (request.form.get('cor_secundaria') or '').strip()
+        cor_texto = (request.form.get('cor_texto') or '').strip()
+        cor_destaque_texto = (request.form.get('cor_destaque_texto') or '').strip()
+        cor_hover = (request.form.get('cor_hover') or '').strip()
+        cor_texto_destaque = (request.form.get('cor_texto_destaque') or '').strip()
+        cor_card = (request.form.get('cor_card') or '').strip()
+        cor_formulario = (request.form.get('cor_formulario') or '').strip()
+        cor_linha = (request.form.get('cor_linha') or '').strip()
+        cor_modal = (request.form.get('cor_modal') or '').strip()
+        cor_icone = (request.form.get('cor_icone') or '').strip()
+        cor_texto_formulario = (request.form.get('cor_texto_formulario') or '').strip()
+
+        cur.execute("""
+            INSERT INTO CORES (
+                COR_BOTAO,
+                COR_PRINCIPAL,
+                COR_ALERTA,
+                COR_FUNDO,
+                COR_SECUNDARIA,
+                COR_TEXTO,
+                COR_DESTAQUE_TEXTO,
+                COR_HOVER,
+                COR_TEXTO_DESTAQUE,
+                COR_CARD,
+                COR_FORMULARIO,
+                COR_LINHA,
+                COR_MODAL,
+                COR_ICONE, 
+                COR_TEXTO_FORMULARIO,
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            cor_botao,
+            cor_principal,
+            cor_alerta,
+            cor_fundo,
+            cor_secundaria,
+            cor_texto,
+            cor_destaque_texto,
+            cor_hover,
+            cor_texto_destaque,
+            cor_card,
+            cor_formulario,
+            cor_linha,
+            cor_modal,
+            cor_icone,
+            cor_texto_formulario,
+        ))
+
+        con.commit()
+
+        return jsonify({
+            "message": "Cores cadastradas com sucesso!"
+        }), 200
+
+    except Exception as e:
+        con.rollback()
+        return jsonify({
+            "error": f"Erro ao cadastrar cores: {str(e)}"
+        }), 500
+
+    finally:
+        cur.close()
+
+@empresa_blueprint.route('/editar_cores/<int:id_empresa>', methods=['PUT'])
+def editar_cores(id_empresa):
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+    cur = con.cursor()
+
+    try:
+        cor_botao = (request.form.get('cor_botao') or '').strip()
+        cor_principal = (request.form.get('cor_principal') or '').strip()
+        cor_alerta = (request.form.get('cor_alerta') or '').strip()
+        cor_fundo = (request.form.get('cor_fundo') or '').strip()
+        cor_secundaria = (request.form.get('cor_secundaria') or '').strip()
+        cor_texto = (request.form.get('cor_texto') or '').strip()
+        cor_destaque_texto = (request.form.get('cor_destaque_texto') or '').strip()
+        cor_hover = (request.form.get('cor_hover') or '').strip()
+        cor_texto_destaque = (request.form.get('cor_texto_destaque') or '').strip()
+        cor_card = (request.form.get('cor_card') or '').strip()
+        cor_formulario = (request.form.get('cor_formulario') or '').strip()
+        cor_linha = (request.form.get('cor_linha') or '').strip()
+        cor_modal = (request.form.get('cor_modal') or '').strip()
+        cor_icone = (request.form.get('cor_icone') or '').strip()
+        cor_texto_formulario = (request.form.get('cor_texto_formulario') or '').strip()
+
+        cur.execute("""
+            UPDATE CORES
+            SET
+                COR_BOTAO = ?,
+                COR_PRINCIPAL = ?,
+                COR_ALERTA = ?,
+                COR_FUNDO = ?,
+                COR_SECUNDARIA = ?,
+                COR_TEXTO = ?,
+                COR_DESTAQUE_TEXTO = ?,
+                COR_HOVER = ?,
+                COR_TEXTO_DESTAQUE = ?,
+                COR_CARD = ?,
+                COR_FORMULARIO = ?,
+                COR_LINHA = ?,
+                COR_MODAL = ?,
+                COR_ICONE = ?,
+                COR_TEXTO_FORMULARIO = ?,
+            WHERE ID_EMPRESA = ?
+        """, (
+            cor_botao,
+            cor_principal,
+            cor_alerta,
+            cor_fundo,
+            cor_secundaria,
+            cor_texto,
+            cor_destaque_texto,
+            cor_hover,
+            cor_texto_destaque,
+            cor_card,
+            cor_formulario,
+            cor_linha,
+            cor_modal,
+            cor_icone,
+            cor_texto_formulario,
+            id_empresa
+        ))
+
+        con.commit()
+
+        return jsonify({
+            "message": "Cores atualizadas com sucesso!"
+        }), 200
+
+    except Exception as e:
+        con.rollback()
+        return jsonify({
+            "error": f"Erro ao atualizar cores: {str(e)}"
+        }), 500
 
     finally:
         cur.close()
