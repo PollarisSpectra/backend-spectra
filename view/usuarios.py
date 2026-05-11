@@ -227,4 +227,3 @@ def desbloquear_usuario(id):
         cur.close()
 
     return jsonify({"mensagem": "Usuário desbloqueado com sucesso"}), 200
-

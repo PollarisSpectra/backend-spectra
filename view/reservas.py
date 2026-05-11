@@ -1,4 +1,3 @@
-import datetime
 import jwt
 from flask import Blueprint, jsonify, request
 from database import con
