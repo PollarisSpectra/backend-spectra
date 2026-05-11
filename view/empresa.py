@@ -124,18 +124,20 @@ def listar_empresas():
         empresas = cur.fetchall()
 
         resultado = []
+
         for i in empresas:
             resultado.append({
-                "id_empresa": [0],
-                "nome_fantasia": [1],
-                "razao_social": [2],
-                "cnpj": [3],
-                "bairro": [4],
-                "rua": [5],
-                "numero": [6],
-                "cidade": [7],
-                "chave_pix": [8],
-                "cor": [9]
+                "id_empresa": i[0],
+                "nome_fantasia": i[1],
+                "razao_social": i[2],
+                "cnpj": i[3],
+                "bairro": i[4],
+                "rua": i[5],
+                "numero": i[6],
+                "cidade": i[7],
+                "chave_pix": i[8],
+                "telefone": i[9],
+                "cor": i[9]
             })
 
         return jsonify({"empresas": resultado}), 200
