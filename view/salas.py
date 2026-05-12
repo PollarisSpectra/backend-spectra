@@ -8,17 +8,17 @@ salas_blueprint = Blueprint('salas', __name__, url_prefix='/salas')
 # busca dados da sala pelo seu id
 @salas_blueprint.route('/<int:id>', methods=['GET'])
 def sala(id):
-    token = request.cookies.get('access_token')
-    if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
-
-    try:
-        payload = decodificar_token(token)
-
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Token invalid"}), 401
+    # token = request.cookies.get('access_token')
+    # if not token:
+    #     return jsonify({"error": "Token de autenticação necessário."}), 401
+    #
+    # try:
+    #     payload = decodificar_token(token)
+    #
+    # except jwt.ExpiredSignatureError:
+    #     return jsonify({"error": "Token expired"}), 401
+    # except jwt.InvalidTokenError:
+    #     return jsonify({"error": "Token invalid"}), 401
 
     cur = None
 
@@ -52,16 +52,16 @@ def sala(id):
 
 @salas_blueprint.route('/<int:id>/assentos', methods=['GET'])
 def assentos_sala(id):
-    token = request.cookies.get('access_token')
-    if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
-
-    try:
-        payload = decodificar_token(token)
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Token invalid"}), 401
+    # token = request.cookies.get('access_token')
+    # if not token:
+    #     return jsonify({"error": "Token de autenticação necessário."}), 401
+    #
+    # try:
+    #     payload = decodificar_token(token)
+    # except jwt.ExpiredSignatureError:
+    #     return jsonify({"error": "Token expired"}), 401
+    # except jwt.InvalidTokenError:
+    #     return jsonify({"error": "Token invalid"}), 401
 
     cur = None
 

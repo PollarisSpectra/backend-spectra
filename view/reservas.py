@@ -147,6 +147,35 @@ def pagamento(id):
         if cur:
             cur.close()
 
+# rota de assentos ocupados por reserva
+@reservas_bp.route('/<int:id>/assentos_ocupados', methods=["GET"])
+def obter_assentos_ocupados(id):
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+        SELECT assala.ASSENTO
+        FROM RESERVA_ASSENTO ra
+        LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA
+        INNER JOIN ASSENTO_SALA assala ON assala.ID_ASSENTO_SALA = ra.ID_ASSENTO_SALA
+        WHERE r.ID_SESSAO = ?;
+        """, (id,))
+
+        assentos_ocupados = cur.fetchall()
+        print(assentos_ocupados)
+
+        if not assentos_ocupados:
+            return jsonify({"error": "Sessao nao encontrada"}), 404
+
+        return jsonify({ "message": "Assentos ocupados obtidos com sucesso", "assentos": [assento[0] for assento in assentos_ocupados] }), 200
+
+    except Exception as e:
+        print("Erro ao obter assentos ocupados: " + str(e))
+        return jsonify({"message": "Internal Server Error"}), 500
+    finally:
+        if cur:
+            cur.close()
+
 # Rota de exclusão de reserva
 @reservas_bp.route("/<int:id>", methods=["DELETE"])
 def excluir_reserva(id):
