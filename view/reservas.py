@@ -36,6 +36,7 @@ def reservas(id):
 # - validar se o assento já está reservado para aquela sessão (busca por sessao)
 @reservas_bp.route("/", methods=["POST"])
 def criar_reserva():
+    cur = None
     try:
         cookie = request.cookies.get('access_token', '')
 
