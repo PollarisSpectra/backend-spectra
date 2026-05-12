@@ -1,6 +1,7 @@
-from flask import Blueprint, request, send_file
+from flask import Blueprint, request, send_file, jsonify
 from funcao import gerar_payload_pix
 import qrcode
+import base64
 import io
 
 pix_blueprint = Blueprint('pix_blueprint', __name__, url_prefix='/pix')
@@ -21,4 +22,9 @@ def pix_qrcode():
     img.save(buffer, format="PNG")
     buffer.seek(0)
 
-    return send_file(buffer, mimetype="image/png")
+    img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    return jsonify({
+        "payload": payload,
+        "qrcode": img_base64
+    })
