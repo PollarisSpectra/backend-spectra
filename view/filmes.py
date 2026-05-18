@@ -18,11 +18,11 @@ def cadastro_filme():
 
     cur = con.cursor()
     try:
-        titulo = (request.form.get('titulo') or '').strip().lower()
+        titulo = (request.form.get('titulo') or '').strip()
         if not titulo:
             return jsonify({"error": "Título é obrigatório"}), 400
 
-        sinopse = (request.form.get('sinopse') or '').strip().lower()
+        sinopse = (request.form.get('sinopse') or '').strip()
         if not sinopse:
             return jsonify({"error": "Sinopse é obrigatória"}), 400
 
