@@ -81,7 +81,7 @@ def criar_reserva():
         INSERT INTO reserva (id_promocao, id_usuario, id_sessao, valortotal, desconto, status, datareserva)
         VALUES (?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP)
         RETURNING id_reserva
-        """, (None, id_usuario, id_sessao, (len(assentos) * valor_assento), 3))
+        """, (None, id_usuario, id_sessao, (len(assentos) * valor_assento), 1))
 
         # conferindo se a reserva foi criada
         id_reserva_criada = cur.fetchone()[0]
@@ -199,3 +199,32 @@ def excluir_reserva(id):
     finally:
         if cur:
             cur.close()
+
+# endpoint para obter reservas do usuario
+@reservas_bp.route("/<int:id>/usuario", methods=["GET"])
+def obter_reservas_usuario(id):
+    cur = None
+    try:
+        cur = con.cursor()
+
+        cur.execute("""
+        SELECT r.*, f.* FROM RESERVA r
+        INNER JOIN SESSAO s ON r.ID_SESSAO = s.ID_SESSAO 
+        INNER JOIN FILME f ON f.ID_FILME = s.ID_FILME
+        WHERE ID_USUARIO = ?
+        """, (id,))
+
+        res = cur.fetchall()
+
+        colunas = [desc[0].lower() for desc in cur.description]
+        resultado = [dict(zip(colunas, reserva)) for reserva in res]
+
+        return jsonify({ "message": "Reservas obtidas com sucesso", "reservas": resultado})
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if cur:
+            cur.close()
+
+
