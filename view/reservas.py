@@ -1,9 +1,10 @@
 import base64
 import io
-
+import math
+import os
 import jwt
 import qrcode
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from database import con
 from funcao import decodificar_token, gerar_payload_pix
 
@@ -31,6 +32,104 @@ def reservas(id):
         return jsonify({ "message": "Sucesso ao consultar reserva", "reserva": reserva }), 200
     except Exception as e:
         return jsonify({"error": "Internal Server Error"}), 500
+    finally:
+        if cur:
+            cur.close()
+
+@reservas_bp.route('/<int:id_usuario>/usuario', methods=['GET'])
+def listar_reservas_usuario(id_usuario):
+    cur = None
+    try:
+        # Parâmetros de Filtro
+        id_reserva_filtro = request.args.get('id_reserva', '')
+        id_sessao_filtro = request.args.get('id_sessao', '')
+        status_filtro = request.args.get('status', '')
+
+        # Parâmetros de Paginação
+        page_size = int(request.args.get('page_size', 10))
+        page_number = int(request.args.get('page_number', 1))
+        offset = (page_number - 1) * page_size
+
+        cur = con.cursor()
+
+        # 1. Query para contar o total de resultados com os filtros aplicados
+        sql_count = """
+            SELECT COUNT(*) FROM RESERVA
+            WHERE ID_USUARIO = ?
+            AND CAST(ID_RESERVA AS VARCHAR(20)) LIKE ?
+            AND CAST(ID_SESSAO AS VARCHAR(20)) LIKE ?
+            AND CAST(STATUS AS VARCHAR(20)) LIKE ?
+        """
+        params_count = (
+            id_usuario,
+            f"%{id_reserva_filtro}%",
+            f"%{id_sessao_filtro}%",
+            f"%{status_filtro}%"
+        )
+        cur.execute(sql_count, params_count)
+        total_results = cur.fetchone()[0]
+
+        # 2. Query Principal trazendo os dados da Reserva, ID_FILME e TITULO do Filme
+        sql_main = """
+            SELECT FIRST ? SKIP ? 
+                r.ID_RESERVA, r.ID_PROMOCAO, r.ID_USUARIO, r.ID_SESSAO, 
+                r.VALORTOTAL, r.DESCONTO, r.STATUS, r.DATARESERVA,
+                s.ID_FILME, f.TITULO AS FILME_TITULO
+            FROM RESERVA r
+            INNER JOIN SESSAO s ON r.ID_SESSAO = s.ID_SESSAO
+            INNER JOIN FILME f ON s.ID_FILME = f.ID_FILME
+            WHERE r.ID_USUARIO = ?
+            AND CAST(r.ID_RESERVA AS VARCHAR(20)) LIKE ?
+            AND CAST(r.ID_SESSAO AS VARCHAR(20)) LIKE ?
+            AND CAST(r.STATUS AS VARCHAR(20)) LIKE ?
+            ORDER BY r.ID_RESERVA DESC
+        """
+        params_main = (
+            page_size,
+            offset,
+            id_usuario,
+            f"%{id_reserva_filtro}%",
+            f"%{id_sessao_filtro}%",
+            f"%{status_filtro}%"
+        )
+        cur.execute(sql_main, params_main)
+        reservas = cur.fetchall()
+
+        columns = [desc[0].lower() for desc in cur.description]
+        resultados = [dict(zip(columns, row)) for row in reservas]
+
+        # 3. Mapeia as imagens do respectivo Filme da Sessão
+        for r in resultados:
+            if r.get('datareserva'):
+                r['datareserva'] = str(r['datareserva'])
+
+            id_filme = r.get('id_filme')
+            if id_filme:
+                caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes", f"{id_filme}.jpg")
+                if os.path.exists(caminho):
+                    r['imagem_url'] = f"/imagem_filme/{id_filme}.jpg"
+                else:
+                    r['imagem_url'] = None
+            else:
+                r['imagem_url'] = None
+
+        if not resultados and page_number == 1:
+            return jsonify({"reservas": [], "total_pages": 0, "current_page": 1}), 200
+
+        total_pages = math.ceil(total_results / page_size) if total_results > 0 else 0
+
+        return jsonify({
+            "total_results": total_results,
+            "total_pages": total_pages,
+            "current_page": page_number,
+            "reservas": resultados
+        }), 200
+
+    except ValueError:
+        return jsonify({"error": "page_size e page_number devem ser números inteiros"}), 400
+    except Exception as e:
+        print(f"Erro ao listar reservas: {str(e)}")
+        return jsonify({"error": "Erro interno ao processar reservas"}), 500
     finally:
         if cur:
             cur.close()
