@@ -11,11 +11,6 @@ empresa_blueprint = Blueprint('empresa', __name__, url_prefix='/empresa')
 
 @empresa_blueprint.route('/cadastro_empresa', methods=['POST'])
 def cadastro_empresa():
-    token = request.cookies.get('access_token')
-
-    if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
-
     cur = con.cursor()
 
     try:
@@ -40,10 +35,15 @@ def cadastro_empresa():
 
         imagem = request.files.get('imagem')
 
-        if cnpj:
-            cur.execute('SELECT 1 FROM EMPRESA WHERE CNPJ = ?', (cnpj,))
-            if cur.fetchone():
-                return jsonify({"error": "Empresa já cadastrada"}), 400
+
+        cur.execute("SELECT COUNT(*) FROM EMPRESA")
+
+        total = cur.fetchone()[0]
+
+        if total > 0:
+            return jsonify({
+                "error": "Empresa já cadastrada"
+            }), 400
 
         cur.execute("""
             INSERT INTO EMPRESA (
@@ -192,29 +192,24 @@ def editar_empresa(id):
 
 @empresa_blueprint.route('/cadastro_cores', methods=['POST'])
 def cadastro_cores():
-    token = request.cookies.get('access_token')
-
-    if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
-
     cur = con.cursor()
 
     try:
-        cor_botao = (request.form.get('cor_botao') or '').strip()
-        cor_principal = (request.form.get('cor_principal') or '').strip()
-        cor_alerta = (request.form.get('cor_alerta') or '').strip()
-        cor_fundo = (request.form.get('cor_fundo') or '').strip()
-        cor_secundaria = (request.form.get('cor_secundaria') or '').strip()
-        cor_texto = (request.form.get('cor_texto') or '').strip()
-        cor_destaque_texto = (request.form.get('cor_destaque_texto') or '').strip()
-        cor_hover = (request.form.get('cor_hover') or '').strip()
-        cor_texto_destaque = (request.form.get('cor_texto_destaque') or '').strip()
-        cor_card = (request.form.get('cor_card') or '').strip()
-        cor_formulario = (request.form.get('cor_formulario') or '').strip()
-        cor_linha = (request.form.get('cor_linha') or '').strip()
-        cor_modal = (request.form.get('cor_modal') or '').strip()
-        cor_icone = (request.form.get('cor_icone') or '').strip()
-        cor_texto_formulario = (request.form.get('cor_texto_formulario') or '').strip()
+        cor_botao = (request.form.get('COR_BOTAO') or '').strip()
+        cor_principal = (request.form.get('COR_PRINCIPAL') or '').strip()
+        cor_alerta = (request.form.get('COR_ALERTA') or '').strip()
+        cor_fundo = (request.form.get('COR_FUNDO') or '').strip()
+        cor_secundaria = (request.form.get('COR_SECUNDARIA') or '').strip()
+        cor_texto = (request.form.get('COR_TEXTO') or '').strip()
+        cor_destaque_texto = (request.form.get('COR_DESTAQUE_TEXTO') or '').strip()
+        cor_hover = (request.form.get('COR_HOVER') or '').strip()
+        cor_texto_destaque = (request.form.get('COR_TEXTO_DESTAQUE') or '').strip()
+        cor_card = (request.form.get('COR_CARD') or '').strip()
+        cor_formulario = (request.form.get('COR_FORMULARIO') or '').strip()
+        cor_linha = (request.form.get('COR_LINHA') or '').strip()
+        cor_modal = (request.form.get('COR_MODAL') or '').strip()
+        cor_icone = (request.form.get('COR_ICONE') or '').strip()
+        cor_texto_formulario = (request.form.get('COR_TEXTO_FORMULARIO') or '').strip()
 
         cur.execute("""
             INSERT INTO CORES (
@@ -232,7 +227,7 @@ def cadastro_cores():
                 COR_LINHA,
                 COR_MODAL,
                 COR_ICONE, 
-                COR_TEXTO_FORMULARIO,
+                COR_TEXTO_FORMULARIO
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
@@ -342,6 +337,97 @@ def editar_cores(id_empresa):
         con.rollback()
         return jsonify({
             "error": f"Erro ao atualizar cores: {str(e)}"
+        }), 500
+
+    finally:
+        cur.close()
+
+@empresa_blueprint.route('/buscar_cores', methods=['GET'])
+def buscar_cores():
+
+    cur = con.cursor()
+
+    try:
+
+        cur.execute("""
+            SELECT
+                COR_BOTAO,
+                COR_PRINCIPAL,
+                COR_ALERTA,
+                COR_FUNDO,
+                COR_SECUNDARIA,
+                COR_TEXTO,
+                COR_DESTAQUE_TEXTO,
+                COR_HOVER,
+                COR_TEXTO_DESTAQUE,
+                COR_CARD,
+                COR_FORMULARIO,
+                COR_LINHA,
+                COR_MODAL,
+                COR_ICONE,
+                COR_TEXTO_FORMULARIO
+            FROM CORES
+            ROWS 1
+        """)
+
+        cores = cur.fetchone()
+
+        print(cores)
+
+        if not cores:
+            return jsonify({
+                "error": "Nenhuma cor encontrada"
+            }), 404
+
+        return jsonify({
+            "COR_BOTAO": cores[0],
+            "COR_PRINCIPAL": cores[1],
+            "COR_ALERTA": cores[2],
+            "COR_FUNDO": cores[3],
+            "COR_SECUNDARIA": cores[4],
+            "COR_TEXTO": cores[5],
+            "COR_DESTAQUE_TEXTO": cores[6],
+            "COR_HOVER": cores[7],
+            "COR_TEXTO_DESTAQUE": cores[8],
+            "COR_CARD": cores[9],
+            "COR_FORMULARIO": cores[10],
+            "COR_LINHA": cores[11],
+            "COR_MODAL": cores[12],
+            "COR_ICONE": cores[13],
+            "COR_TEXTO_FORMULARIO": cores[14]
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+    finally:
+        cur.close()
+
+@empresa_blueprint.route('/verificar_empresa', methods=['GET'])
+def verificar_empresa():
+
+    cur = con.cursor()
+
+    try:
+
+        cur.execute("""
+            SELECT FIRST 1 ID_EMPRESA
+            FROM EMPRESA
+        """)
+
+        empresa = cur.fetchone()
+
+        return jsonify({
+            "tem_empresa": bool(empresa)
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "error": str(e)
         }), 500
 
     finally:
