@@ -1,7 +1,11 @@
+import base64
+import io
+
 import jwt
+import qrcode
 from flask import Blueprint, jsonify, request
 from database import con
-from funcao import decodificar_token
+from funcao import decodificar_token, gerar_payload_pix
 
 reservas_bp = Blueprint('reservas', __name__, url_prefix='/reservas')
 
@@ -62,7 +66,7 @@ def criar_reserva():
         cur.execute("""
         SELECT * FROM RESERVA_ASSENTO ra
         LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA
-        WHERE r.ID_SESSAO = ?
+        WHERE r.STATUS = '3' AND r.ID_SESSAO = ?
         """, (id_sessao,))
 
         columns = [desc[0].lower() for desc in cur.description]
@@ -101,7 +105,7 @@ def criar_reserva():
 
         con.commit()
 
-        return jsonify({"message": "Reserva criada com sucesso"})
+        return jsonify({"message": "Reserva criada com sucesso", "id_reserva": id_reserva_criada})
     except jwt.ExpiredSignatureError as e:
         return jsonify({"error": "Expired token"}), 401
     except jwt.InvalidTokenError as e:
@@ -147,6 +151,63 @@ def pagamento(id):
     finally:
         if cur:
             cur.close()
+
+@reservas_bp.route('/gerar_qrcode/<int:id>', methods=["GET"])
+def gerar_qrcode_reserva(id):
+    cur = None
+
+    try:
+        cur = con.cursor()
+
+        cur.execute("""
+            SELECT valortotal AS valor_total
+            FROM RESERVA
+            WHERE id_reserva = ?
+        """, (id,))
+
+        res = cur.fetchone()
+
+        if not res:
+            return jsonify({
+                "error": "Reserva inexistente"
+            }), 404
+
+        reserva = dict(zip(
+            [desc[0].lower() for desc in cur.description],
+            res
+        ))
+
+        valor_total = float(reserva['valor_total'])
+
+        payload = gerar_payload_pix(
+            "41317641809",
+            "PAULO HENRIQUE SOUZA CAVALLINI",
+            "BIRIGUI",
+            valor_total
+        )
+
+        img = qrcode.make(payload)
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        img_base64 = base64.b64encode(
+            buffer.getvalue()
+        ).decode("utf-8")
+
+        return jsonify({
+            "valor": valor_total,
+            "payload": payload,
+            "qrcode": img_base64
+        }), 200
+
+    except Exception as e:
+        print(str(e))
+
+        return jsonify({
+            "error": "Internal Server Error"
+        }), 500
 
 # rota de assentos ocupados por reserva
 @reservas_bp.route('/<int:id>/assentos_ocupados', methods=["GET"])
