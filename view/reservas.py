@@ -165,7 +165,7 @@ def criar_reserva():
         cur.execute("""
         SELECT * FROM RESERVA_ASSENTO ra
         LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA
-        WHERE r.STATUS = '3' AND r.ID_SESSAO = ?
+        WHERE r.STATUS = '1' AND r.ID_SESSAO = ?
         """, (id_sessao,))
 
         columns = [desc[0].lower() for desc in cur.description]
@@ -393,10 +393,10 @@ def obter_assentos_ocupados(id):
         cur.execute("""
         SELECT assala.ASSENTO
         FROM RESERVA_ASSENTO ra
-        LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA
+        LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA 
         INNER JOIN ASSENTO_SALA assala ON assala.ID_ASSENTO_SALA = ra.ID_ASSENTO_SALA
         WHERE r.ID_SESSAO = ?
-        AND (r.STATUS = 1 OR (r.STATUS = 'pendente' AND r.EXPIRACAO > CURRENT_TIMESTAMP))
+        AND (r.STATUS = '1' OR (r.STATUS = '3' AND r.EXPIRACAO > CURRENT_TIMESTAMP))
         """, (id,))
 
         assentos_ocupados = cur.fetchall()
