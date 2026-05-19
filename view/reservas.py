@@ -135,8 +135,6 @@ def listar_reservas_usuario(id_usuario):
             cur.close()
 
 # Rota de criação de reserva
-# [-] TODO:
-# - validar se o assento já está reservado para aquela sessão (busca por sessao)
 @reservas_bp.route("/", methods=["POST"])
 def criar_reserva():
     cur = None
@@ -181,10 +179,10 @@ def criar_reserva():
 
         # criando reserva com valor de assento
         cur.execute("""
-        INSERT INTO reserva (id_promocao, id_usuario, id_sessao, valortotal, desconto, status, datareserva)
-        VALUES (?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP)
+        INSERT INTO reserva (id_promocao, id_usuario, id_sessao, valortotal, desconto, status, datareserva, expiracao)
+        VALUES (?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, DATEADD(10 MINUTE TO CURRENT_TIMESTAMP))
         RETURNING id_reserva
-        """, (None, id_usuario, id_sessao, (len(assentos) * valor_assento), 1))
+        """, (None, id_usuario, id_sessao, (len(assentos) * valor_assento), 3))
 
         # conferindo se a reserva foi criada
         id_reserva_criada = cur.fetchone()[0]
@@ -212,6 +210,7 @@ def criar_reserva():
     except ValueError:
         return jsonify({"error": "Verifique o tipo dos campos"}), 400
     except Exception as e:
+        print(str(e))
         con.rollback()
         return jsonify({"error": "Internal Server Error"}), 500
     finally:
@@ -234,7 +233,7 @@ def pagamento(id):
         cur = con.cursor()
         cur.execute("""
         UPDATE RESERVA r
-        SET r.STATUS = '0'
+        SET r.STATUS = '1'
         WHERE r.ID_RESERVA = ?
         """, (id,))
 
@@ -319,11 +318,11 @@ def obter_assentos_ocupados(id):
         FROM RESERVA_ASSENTO ra
         LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA
         INNER JOIN ASSENTO_SALA assala ON assala.ID_ASSENTO_SALA = ra.ID_ASSENTO_SALA
-        WHERE r.ID_SESSAO = ?;
+        WHERE r.ID_SESSAO = ?
+        AND (r.STATUS = 1 OR (r.STATUS = 'pendente' AND r.EXPIRACAO > CURRENT_TIMESTAMP))
         """, (id,))
 
         assentos_ocupados = cur.fetchall()
-        print(assentos_ocupados)
 
         if not assentos_ocupados:
             return jsonify({"error": "Sessao nao encontrada"}), 404
