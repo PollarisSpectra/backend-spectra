@@ -2,11 +2,13 @@ import base64
 import io
 import math
 import os
+import threading
+
 import jwt
 import qrcode
 from flask import Blueprint, jsonify, request, current_app
 from database import con
-from funcao import decodificar_token, gerar_payload_pix
+from funcao import decodificar_token, gerar_payload_pix, enviando_email
 
 reservas_bp = Blueprint('reservas', __name__, url_prefix='/reservas')
 
@@ -220,33 +222,109 @@ def criar_reserva():
 
 @reservas_bp.route('/pagamento/<int:id>', methods=["POST"])
 def pagamento(id):
+    cur = None
+
     try:
         cookie = request.cookies.get('access_token')
 
         if not cookie:
-            return jsonify({"error": "Token de autenticacao necessario"}), 401
+            return jsonify({
+                "error": "Token de autenticacao necessario"
+            }), 401
 
         payload = decodificar_token(cookie)
+        id_usuario = payload['id_usuario']
+
 
         if not id:
-            return jsonify({"error": "Insira o id da reserva"}), 400
+            return jsonify({
+                "error": "Insira o id da reserva"
+            }), 400
 
         cur = con.cursor()
+
+        # confirma a reserva
         cur.execute("""
-        UPDATE RESERVA r
-        SET r.STATUS = '0'
-        WHERE r.ID_RESERVA = ?
-        """, (id,))
+            UPDATE RESERVA
+            SET STATUS = '0'
+            WHERE ID_RESERVA = ?
+            AND ID_USUARIO = ?
+        """, (id, id_usuario))
 
         con.commit()
 
-        return jsonify({"message": "Reserva confirmada com sucesso"})
-    except jwt.ExpiredSignatureError as e:
-        return jsonify({"error": "Expired token"}), 401
-    except jwt.InvalidTokenError as e:
-        return jsonify({"error": "Invalid token"}), 401
-    except Exception:
-        return jsonify({"error": "Internal Server Error"}), 500
+        # busca dados para envio do email
+        cur.execute("""
+            SELECT
+                u.NOME,
+                u.EMAIL,
+                f.TITULO,
+                r.VALORTOTAL,
+                r.ID_RESERVA
+            FROM RESERVA r
+            INNER JOIN USUARIO u
+                ON u.ID_USUARIO = r.ID_USUARIO
+            INNER JOIN SESSAO s
+                ON s.ID_SESSAO = r.ID_SESSAO
+            INNER JOIN FILME f
+                ON f.ID_FILME = s.ID_FILME
+            WHERE r.ID_RESERVA = ?
+        """, (id,))
+
+        dados = cur.fetchone()
+
+        print("DADOS DO EMAIL:", dados)
+
+        if dados:
+            nome, email, filme, valor_total, id_reserva = dados
+
+            assunto = "Reserva confirmada - Cinema"
+
+            mensagem = f"""
+                    Olá, {nome}!
+                    
+                    Sua reserva foi confirmada com sucesso 🍿
+                    Obrigada por comprar conosco.
+                     
+                    Segue os dados da sua compra:
+                    
+                    Filme: {filme}
+                    Número da reserva: {id_reserva}
+                    Valor Total: R$ {valor_total}
+                    
+                    Bom filme!
+                    """
+
+            thread = threading.Thread(
+                target=enviando_email,
+                args=(email, assunto, mensagem)
+            )
+
+            thread.start()
+
+        return jsonify({
+            "message": "Reserva confirmada com sucesso"
+        }), 200
+
+    except jwt.ExpiredSignatureError:
+        return jsonify({
+            "error": "Expired token"
+        }), 401
+
+    except jwt.InvalidTokenError:
+        return jsonify({
+            "error": "Invalid token"
+        }), 401
+
+    except Exception as e:
+        print(str(e))
+
+        con.rollback()
+
+        return jsonify({
+            "error": "Internal Server Error"
+        }), 500
+
     finally:
         if cur:
             cur.close()

@@ -33,34 +33,34 @@ def validar_senha(senha: str):
         return False
     return True
 
-
-def enviando_email(destinatario, assunto, html_pronto):
-    try:
-        user = "sophia.biliattoo@gmail.com"
-        senha = "eahu tqrv kaxi jsnb"
-
-        msg = EmailMessage()
-        msg['Subject'] = assunto
-        msg['From'] = user
-        msg['To'] = destinatario
-
-        # Aqui usamos o HTML que já veio renderizado da rota
-        msg.set_content("Para ver esta mensagem, use um cliente de e-mail com suporte a HTML.")
-        msg.add_alternative(html_pronto, subtype='html')
-
-        # server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
-        # server.starttls()
-        # server.login(user, senha)
-        # server.send_message(msg)
-        # server.quit()
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
-            server.login(user, senha)
-            server.send_message(msg)
-
-        print("E-mail enviado com sucesso via Thread!")
-    except Exception as e:
-        print("Houve um erro ao enviar email: " + str(e))
+#
+# def enviando_email(destinatario, assunto, html_pronto):
+#     try:
+#         user = "sophia.biliattoo@gmail.com"
+#         senha = "eahu tqrv kaxi jsnb"
+#
+#         msg = EmailMessage()
+#         msg['Subject'] = assunto
+#         msg['From'] = user
+#         msg['To'] = destinatario
+#
+#         # Aqui usamos o HTML que já veio renderizado da rota
+#         msg.set_content("Para ver esta mensagem, use um cliente de e-mail com suporte a HTML.")
+#         msg.add_alternative(html_pronto, subtype='html')
+#
+#         # server = smtplib.SMTP('smtp.gmail.com', 587, timeout=30)
+#         # server.starttls()
+#         # server.login(user, senha)
+#         # server.send_message(msg)
+#         # server.quit()
+#
+#         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as server:
+#             server.login(user, senha)
+#             server.send_message(msg)
+#
+#         print("E-mail enviado com sucesso via Thread!")
+#     except Exception as e:
+#         print("Houve um erro ao enviar email: " + str(e))
 
 def remove_bearer(token):
     if token.startswith('Bearer '):
@@ -70,22 +70,22 @@ def remove_bearer(token):
 
 
 
-# def enviando_email(destinatario, assunto, mensagem):
-#         user = "sophia.biliattoo@gmail.com"
-#         senha = "eahu tqrv kaxi jsnb"
-#
-#         msg = MIMEText(mensagem)
-#         msg['Subject'] = assunto
-#         msg['From'] = user
-#         msg['To'] = destinatario
-#
-#         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-#
-#         server.login(user, senha)
-#         server.send_message(msg)
-#         server.quit()
-#
-#
+def enviando_email(destinatario, assunto, mensagem):
+        user = "sophia.biliattoo@gmail.com"
+        senha = "eahu tqrv kaxi jsnb"
+
+        msg = MIMEText(mensagem)
+        msg['Subject'] = assunto
+        msg['From'] = user
+        msg['To'] = destinatario
+
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+
+        server.login(user, senha)
+        server.send_message(msg)
+        server.quit()
+
+
 
 #
 # def enviar_codigo(id_usuario, email):
