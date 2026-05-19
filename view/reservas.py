@@ -73,8 +73,8 @@ def listar_reservas_usuario(id_usuario):
 
         # 2. Query Principal trazendo os dados da Reserva, ID_FILME e TITULO do Filme
         sql_main = """
-            SELECT FIRST ? SKIP ? 
-                r.ID_RESERVA, r.ID_PROMOCAO, r.ID_USUARIO, r.ID_SESSAO, 
+            SELECT FIRST ? SKIP ?
+                r.ID_RESERVA, r.ID_PROMOCAO, r.ID_USUARIO, r.ID_SESSAO,
                 r.VALORTOTAL, r.DESCONTO, r.STATUS, r.DATARESERVA,
                 s.ID_FILME, f.TITULO AS FILME_TITULO
             FROM RESERVA r
@@ -281,7 +281,7 @@ def pagamento(id):
             # NOVA CONSULTA COM JOIN: Busca o nome do assento (A1, A2...) associado a esta reserva
             # Ajuste o nome da tabela 'ASSENTO_SALA' se no seu banco for diferente
             cur.execute("""
-                SELECT ast.ASSENTO 
+                SELECT ast.ASSENTO
                 FROM RESERVA_ASSENTO ra
                 INNER JOIN ASSENTO_SALA ast
                     ON ast.ID_ASSENTO_SALA = ra.ID_ASSENTO_SALA
@@ -399,7 +399,7 @@ def gerar_qrcode_reserva(id):
         dados = { "cidade": "BIRIGUI", "chave_pix": "41317641809", "razao_social": "PAULO HENRIQUE SOUZA CAVALLINI" }
 
         if resultado:
-            dados = dict(zip([desc[0].lower() for desc in cur.description], cur.fetchone()[0]))
+            dados = dict(zip([desc[0].lower() for desc in cur.description], resultado))
 
         valor_total = float(reserva['valor_total'])
 
@@ -442,7 +442,7 @@ def obter_assentos_ocupados(id):
         cur.execute("""
         SELECT assala.ASSENTO
         FROM RESERVA_ASSENTO ra
-        LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA 
+        LEFT JOIN RESERVA r ON r.ID_RESERVA = ra.ID_RESERVA
         INNER JOIN ASSENTO_SALA assala ON assala.ID_ASSENTO_SALA = ra.ID_ASSENTO_SALA
         WHERE r.ID_SESSAO = ?
         AND (r.STATUS = '1' OR (r.STATUS = '3' AND r.EXPIRACAO > CURRENT_TIMESTAMP))
@@ -494,7 +494,7 @@ def obter_reservas_usuario(id):
 
         cur.execute("""
         SELECT r.*, f.* FROM RESERVA r
-        INNER JOIN SESSAO s ON r.ID_SESSAO = s.ID_SESSAO 
+        INNER JOIN SESSAO s ON r.ID_SESSAO = s.ID_SESSAO
         INNER JOIN FILME f ON f.ID_FILME = s.ID_FILME
         WHERE ID_USUARIO = ?
         """, (id,))
