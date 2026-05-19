@@ -387,12 +387,26 @@ def gerar_qrcode_reserva(id):
             res
         ))
 
+        cur.execute("""
+        SELECT cidade, chave_pix, cnpj, razao_social
+        FROM EMPRESA e
+        ORDER BY ID_EMPRESA ASC
+        FETCH FIRST 1 ROW ONLY
+        """)
+
+        resultado = cur.fetchone()
+
+        dados = { "cidade": "BIRIGUI", "chave_pix": "41317641809", "razao_social": "PAULO HENRIQUE SOUZA CAVALLINI" }
+
+        if resultado:
+            dados = dict(zip([desc[0].lower() for desc in cur.description], cur.fetchone()[0]))
+
         valor_total = float(reserva['valor_total'])
 
         payload = gerar_payload_pix(
-            "41317641809",
-            "PAULO HENRIQUE SOUZA CAVALLINI",
-            "BIRIGUI",
+            dados["chave_pix"],
+            dados["razao_social"],
+            dados["cidade"],
             valor_total
         )
 
