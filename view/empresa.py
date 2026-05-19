@@ -1,5 +1,5 @@
 import fdb.fbcore
-from flask import Blueprint, jsonify, request, current_app, send_from_directory
+from flask import Blueprint, jsonify, request, current_app, send_from_directory, send_file
 from funcao import decodificar_token
 from database import con
 import math
@@ -263,31 +263,36 @@ def cadastro_cores():
     finally:
         cur.close()
 
+
 @empresa_blueprint.route('/editar_cores/<int:id_empresa>', methods=['PUT'])
 def editar_cores(id_empresa):
+
     token = request.cookies.get('access_token')
 
     if not token:
-        return jsonify({"error": "Token de autenticação necessário."}), 401
+        return jsonify({
+            "error": "Token de autenticação necessário."
+        }), 401
 
     cur = con.cursor()
 
     try:
-        cor_botao = (request.form.get('cor_botao') or '').strip()
-        cor_principal = (request.form.get('cor_principal') or '').strip()
-        cor_alerta = (request.form.get('cor_alerta') or '').strip()
-        cor_fundo = (request.form.get('cor_fundo') or '').strip()
-        cor_secundaria = (request.form.get('cor_secundaria') or '').strip()
-        cor_texto = (request.form.get('cor_texto') or '').strip()
-        cor_destaque_texto = (request.form.get('cor_destaque_texto') or '').strip()
-        cor_hover = (request.form.get('cor_hover') or '').strip()
-        cor_texto_destaque = (request.form.get('cor_texto_destaque') or '').strip()
-        cor_card = (request.form.get('cor_card') or '').strip()
-        cor_formulario = (request.form.get('cor_formulario') or '').strip()
-        cor_linha = (request.form.get('cor_linha') or '').strip()
-        cor_modal = (request.form.get('cor_modal') or '').strip()
-        cor_icone = (request.form.get('cor_icone') or '').strip()
-        cor_texto_formulario = (request.form.get('cor_texto_formulario') or '').strip()
+
+        cor_botao = (request.form.get('COR_BOTAO') or '').strip()
+        cor_principal = (request.form.get('COR_PRINCIPAL') or '').strip()
+        cor_alerta = (request.form.get('COR_ALERTA') or '').strip()
+        cor_fundo = (request.form.get('COR_FUNDO') or '').strip()
+        cor_secundaria = (request.form.get('COR_SECUNDARIA') or '').strip()
+        cor_texto = (request.form.get('COR_TEXTO') or '').strip()
+        cor_destaque_texto = (request.form.get('COR_DESTAQUE_TEXTO') or '').strip()
+        cor_hover = (request.form.get('COR_HOVER') or '').strip()
+        cor_texto_destaque = (request.form.get('COR_TEXTO_DESTAQUE') or '').strip()
+        cor_card = (request.form.get('COR_CARD') or '').strip()
+        cor_formulario = (request.form.get('COR_FORMULARIO') or '').strip()
+        cor_linha = (request.form.get('COR_LINHA') or '').strip()
+        cor_modal = (request.form.get('COR_MODAL') or '').strip()
+        cor_icone = (request.form.get('COR_ICONE') or '').strip()
+        cor_texto_formulario = (request.form.get('COR_TEXTO_FORMULARIO') or '').strip()
 
         cur.execute("""
             UPDATE CORES
@@ -306,7 +311,7 @@ def editar_cores(id_empresa):
                 COR_LINHA = ?,
                 COR_MODAL = ?,
                 COR_ICONE = ?,
-                COR_TEXTO_FORMULARIO = ?,
+                COR_TEXTO_FORMULARIO = ?
             WHERE ID_EMPRESA = ?
         """, (
             cor_botao,
@@ -334,14 +339,15 @@ def editar_cores(id_empresa):
         }), 200
 
     except Exception as e:
+
         con.rollback()
+
         return jsonify({
             "error": f"Erro ao atualizar cores: {str(e)}"
         }), 500
 
     finally:
         cur.close()
-
 @empresa_blueprint.route('/buscar_cores', methods=['GET'])
 def buscar_cores():
 
@@ -410,7 +416,6 @@ def buscar_cores():
 def verificar_empresa():
 
     cur = con.cursor()
-
     try:
 
         cur.execute("""
@@ -421,8 +426,74 @@ def verificar_empresa():
         empresa = cur.fetchone()
 
         return jsonify({
-            "tem_empresa": bool(empresa)
+            "tem_empresa": bool(empresa),
+            "id_empresa": int(empresa[0])
         })
+
+    except Exception as e:
+
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+    finally:
+        cur.close()
+
+@empresa_blueprint.route('/logo/<int:id>')
+def obter_logo_empresa(id):
+
+
+    caminho = os.path.join(
+        current_app.config['UPLOAD_FOLDER'],
+        "Empresas",
+        f"{id}.jpg"
+    )
+
+    return send_file(caminho, mimetype='image/jpeg')
+
+@empresa_blueprint.route('/buscar_empresa', methods=['GET'])
+def buscar_empresa():
+
+    cur = con.cursor()
+
+    try:
+
+        cur.execute("""
+            SELECT FIRST 1
+                ID_EMPRESA,
+                NOME_FANTASIA,
+                RAZAO_SOCIAL,
+                CNPJ,
+                BAIRRO,
+                RUA,
+                NUMERO,
+                CIDADE,
+                CHAVE_PIX,
+                COR,
+                TELEFONE
+            FROM EMPRESA
+        """)
+
+        empresa = cur.fetchone()
+
+        if not empresa:
+            return jsonify({
+                "error": "Empresa não encontrada"
+            }), 404
+
+        return jsonify({
+            "id_empresa": empresa[0],
+            "nome_fantasia": empresa[1],
+            "razao_social": empresa[2],
+            "cnpj": empresa[3],
+            "bairro": empresa[4],
+            "rua": empresa[5],
+            "numero": empresa[6],
+            "cidade": empresa[7],
+            "chave_pix": empresa[8],
+            "cor": empresa[9],
+            "telefone": empresa[10]
+        }), 200
 
     except Exception as e:
 
