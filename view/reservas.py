@@ -219,6 +219,7 @@ def criar_reserva():
         if cur:
             cur.close()
 
+
 @reservas_bp.route('/pagamento/<int:id>', methods=["POST"])
 def pagamento(id):
     cur = None
@@ -233,7 +234,6 @@ def pagamento(id):
 
         payload = decodificar_token(cookie)
         id_usuario = payload['id_usuario']
-
 
         if not id:
             return jsonify({
@@ -251,14 +251,16 @@ def pagamento(id):
 
         con.commit()
 
-        # busca dados para envio do email
+        # busca dados gerais da reserva para o email
         cur.execute("""
             SELECT
                 u.NOME,
                 u.EMAIL,
                 f.TITULO,
                 r.VALORTOTAL,
-                r.ID_RESERVA
+                r.ID_RESERVA,
+                s.DATA,
+                s.HORARIO
             FROM RESERVA r
             INNER JOIN USUARIO u
                 ON u.ID_USUARIO = r.ID_USUARIO
@@ -274,22 +276,55 @@ def pagamento(id):
         print("DADOS DO EMAIL:", dados)
 
         if dados:
-            nome, email, filme, valor_total, id_reserva = dados
+            nome, email, filme, valor_total, id_reserva, data_sessao, horario_sessao = dados
+
+            # NOVA CONSULTA COM JOIN: Busca o nome do assento (A1, A2...) associado a esta reserva
+            # Ajuste o nome da tabela 'ASSENTO_SALA' se no seu banco for diferente
+            cur.execute("""
+                SELECT ast.ASSENTO 
+                FROM RESERVA_ASSENTO ra
+                INNER JOIN ASSENTO_SALA ast
+                    ON ast.ID_ASSENTO_SALA = ra.ID_ASSENTO_SALA
+                WHERE ra.ID_RESERVA = ?
+                ORDER BY ast.ASSENTO
+            """, (id,))
+
+            assentos_linhas = cur.fetchall()
+
+            # Formata os códigos dos assentos em uma lista (ex: "A1, A2, A3")
+            lista_assentos = [linha[0] for linha in assentos_linhas]
+            total_ingressos = len(lista_assentos)
+            assentos_formatados = ", ".join(lista_assentos)
+
+            # Formatação da Data para o padrão brasileiro (dd/mm/aaaa) se necessário
+            if hasattr(data_sessao, 'strftime'):
+                data_formatada = data_sessao.strftime('%d/%m/%Y')
+            else:
+                data_formatada = str(data_sessao)
 
             assunto = "Reserva confirmada - Cinema"
 
+            # Mensagem do e-mail com os assentos corretos e formato padrão de cinema
             mensagem = f"""
                     Olá, {nome}!
-                    
-                    Sua reserva foi confirmada com sucesso 🍿
-                    Obrigada por comprar conosco.
-                     
-                    Segue os dados da sua compra:
-                    
+
+                    Sua reserva foi confirmada com sucesso
+                    Obrigado por comprar conosco.
+
+                    Segue os dados dos seus ingressos:
+
+                    Número da reserva: # {id_reserva}
                     Filme: {filme}
-                    Número da reserva: {id_reserva}
+                    Data: {data_formatada} às {horario_sessao}
+                    Qtd. Ingressos: {total_ingressos}
+                    Assento(s): {assentos_formatados}
+
+                    ----------------------------------------
                     Valor Total: R$ {valor_total}
-                    
+                    ----------------------------------------
+
+                    Apresente o número da reserva ou este e-mail na bilheteria/totem para retirar seus ingressos físicos ou entrar na sala.
+
                     Bom filme!
                     """
 
