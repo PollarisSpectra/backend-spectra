@@ -74,7 +74,7 @@ def listar_reservas_usuario(id_usuario):
         # 2. Query Principal trazendo os dados da Reserva, ID_FILME e TITULO do Filme
         sql_main = """
             SELECT FIRST ? SKIP ?
-                r.ID_RESERVA, r.ID_PROMOCAO, r.ID_USUARIO, r.ID_SESSAO,
+                r.ID_RESERVA, r.ID_USUARIO, r.ID_SESSAO,
                 r.VALORTOTAL, r.DESCONTO, r.STATUS, r.DATARESERVA,
                 s.ID_FILME, f.TITULO AS FILME_TITULO
             FROM RESERVA r
@@ -181,10 +181,10 @@ def criar_reserva():
 
         # criando reserva com valor de assento
         cur.execute("""
-        INSERT INTO reserva (id_promocao, id_usuario, id_sessao, valortotal, desconto, status, datareserva, expiracao)
-        VALUES (?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, DATEADD(10 MINUTE TO CURRENT_TIMESTAMP))
+        INSERT INTO reserva ( id_usuario, id_sessao, valortotal, desconto, status, datareserva, expiracao)
+        VALUES ( ?, ?, ?, 0, ?, CURRENT_TIMESTAMP, DATEADD(10 MINUTE TO CURRENT_TIMESTAMP))
         RETURNING id_reserva
-        """, (None, id_usuario, id_sessao, (len(assentos) * valor_assento), 3))
+        """, (id_usuario, id_sessao, (len(assentos) * valor_assento), 3))
 
         # conferindo se a reserva foi criada
         id_reserva_criada = cur.fetchone()[0]
