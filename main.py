@@ -14,6 +14,7 @@ from view.reserva import reserva_blueprint
 from view.pix import pix_blueprint
 from view.empresa import empresa_blueprint
 from view.reservas import reservas_bp
+from view.banner import banner_blueprint
 
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(usuarios_blueprint)
@@ -24,6 +25,7 @@ app.register_blueprint(reserva_blueprint)
 app.register_blueprint(reservas_bp)
 app.register_blueprint(pix_blueprint)
 app.register_blueprint(empresa_blueprint)
+app.register_blueprint(banner_blueprint)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
