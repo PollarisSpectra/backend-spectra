@@ -14,6 +14,10 @@ banner_blueprint = Blueprint('banner', __name__, url_prefix='/banner')
 
 @banner_blueprint.route('/cadastro', methods=['POST'])
 def cadastro_banner():
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
     cur = con.cursor()
 
     try:
@@ -70,6 +74,11 @@ def cadastro_banner():
 
 @banner_blueprint.route('/editar/<int:id>', methods=['PUT'])
 def editar_banner(id):
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
+
     cur = con.cursor()
 
     try:
@@ -128,6 +137,11 @@ def editar_banner(id):
 
 @banner_blueprint.route('/excluir/<int:id>', methods=['DELETE'])
 def excluir_banner(id):
+
+    token = request.cookies.get('access_token')
+    if not token:
+        return jsonify({"error": "Token de autenticação necessário."}), 401
+
     cur = con.cursor()
 
     try:
@@ -169,7 +183,7 @@ def listar_banners():
                 TEXTO,
                 SITUACAO
             FROM BANNER
-            WHERE SITUACAO = 'ATIVO'
+            WHERE SITUACAO = '1'
             ORDER BY ID_BANNER
         """)
 
@@ -182,7 +196,8 @@ def listar_banners():
                 "id_banner": item[0],
                 "titulo": item[1],
                 "texto": item[2],
-                "situacao": item[3]
+                "situacao": item[3],
+                "imagem": f"/Banner/{item[0]}.jpg"
             })
 
         return jsonify({
@@ -196,3 +211,8 @@ def listar_banners():
 
     finally:
         cur.close()
+
+@banner_blueprint.route('/imagem_banner/<path:filename>')
+def servir_imagem_banner(filename):
+    caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Banner")
+    return send_from_directory(caminho, filename)

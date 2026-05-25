@@ -745,3 +745,24 @@ def sala_sessao(id_sessao):
     finally:
         if cur:
             cur.close()
+
+@sessao_blueprint.route('/total_ativas', methods=['GET'])
+def total_sessoes_ativas():
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM SESSAO
+            WHERE STATUS = '1'
+        """)
+
+        total = cur.fetchone()[0]
+
+        return jsonify({"total": total}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cur.close()

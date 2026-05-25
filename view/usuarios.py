@@ -227,3 +227,23 @@ def desbloquear_usuario(id):
         cur.close()
 
     return jsonify({"mensagem": "Usuário desbloqueado com sucesso"}), 200
+
+@usuarios_blueprint.route('/total', methods=['GET'])
+def total_usuarios():
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM USUARIO
+        """)
+
+        total = cur.fetchone()[0]
+
+        return jsonify({"total": total}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cur.close()

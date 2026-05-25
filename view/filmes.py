@@ -318,3 +318,23 @@ def servir_imagem_filme(filename):
     caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Filmes")
     print(caminho)
     return send_from_directory(caminho, filename)
+
+@filmes_blueprint.route('/total_cartaz', methods=['GET'])
+def total_filmes_cartaz():
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM FILME
+        """)
+
+        total = cur.fetchone()[0]
+
+        return jsonify({"total": total}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cur.close()

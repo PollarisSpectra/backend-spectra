@@ -512,3 +512,22 @@ def obter_reservas_usuario(id):
         if cur:
             cur.close()
 
+@reservas_bp.route('/total_ingressos', methods=['GET'])
+def total_ingressos_vendidos():
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+            SELECT COUNT(*)
+            FROM RESERVA
+        """)
+
+        total = cur.fetchone()[0]
+
+        return jsonify({"total": total}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cur.close()
