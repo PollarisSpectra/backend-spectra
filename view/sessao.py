@@ -583,7 +583,6 @@ def listar_sessao():
         print(str(e))
         return jsonify({"error": "Erro interno do servidor ao listar sessões"}), 500
     finally:
-<<<<<<< Updated upstream
         if cur:
             cur.close()
 
@@ -692,6 +691,6 @@ def total_sessoes_ativas():
 
     finally:
         cur.close()
-=======
+
         if cur: cur.close()
->>>>>>> Stashed changes
+
