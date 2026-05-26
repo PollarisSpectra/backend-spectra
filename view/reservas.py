@@ -439,6 +439,11 @@ def obter_assentos_ocupados(id):
     cur = con.cursor()
 
     try:
+
+        cur.execute("SELECT 1 FROM SESSAO where ID_SESSAO = ?", (id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Sessao nao encontrada"}), 404
+
         cur.execute("""
         SELECT assala.ASSENTO
         FROM RESERVA_ASSENTO ra
@@ -451,7 +456,7 @@ def obter_assentos_ocupados(id):
         assentos_ocupados = cur.fetchall()
 
         if not assentos_ocupados:
-            return jsonify({"error": "Sessao nao encontrada"}), 404
+            assentos_ocupados = []
 
         return jsonify({ "message": "Assentos ocupados obtidos com sucesso", "assentos": [assento[0] for assento in assentos_ocupados] }), 200
 
@@ -531,3 +536,28 @@ def total_ingressos_vendidos():
 
     finally:
         cur.close()
+
+@reservas_bp.route('/relatorio_publico', methods=['GET'])
+def relatorio_publico():
+    cur = con.cursor()
+
+    try:
+        cur.execute("""
+        SELECT COUNT(*) AS publico,
+        r.DATARESERVA AS data_reserva
+        FROM RESERVA r
+        INNER JOIN RESERVA_ASSENTO ra 
+        ON ra.ID_RESERVA = r.ID_RESERVA
+        WHERE r.DATARESERVA >= DATEADD(-1 MONTH TO CURRENT_DATE)
+        GROUP BY r.DATARESERVA
+        ORDER BY r.DATARESERVA;
+        """)
+
+        resultados = cur.fetchall()
+        colunas = [desc[0].lower() for desc in cur.description]
+        dados = [dict(zip(colunas, row)) for row in resultados]
+
+        return jsonify({ "message": "Relatorio obtido com sucesso", "dados": dados}), 200
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error": "Internal Server Error"}), 500
