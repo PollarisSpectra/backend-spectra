@@ -16,6 +16,7 @@ from view.empresa import empresa_blueprint
 from view.reservas import reservas_bp
 from view.banner import banner_blueprint
 
+
 app.register_blueprint(auth_blueprint)
 app.register_blueprint(usuarios_blueprint)
 app.register_blueprint(filmes_blueprint)

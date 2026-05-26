@@ -216,3 +216,50 @@ def listar_banners():
 def servir_imagem_banner(filename):
     caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Banner")
     return send_from_directory(caminho, filename)
+
+
+
+@banner_blueprint.route('/<int:id>', methods=['GET'])
+def buscar_banner(id):
+
+    cur = con.cursor()
+
+    try:
+
+        cur.execute("""
+            SELECT
+                ID_BANNER,
+                TITULO,
+                TEXTO,
+                SITUACAO
+            FROM BANNER
+            WHERE ID_BANNER = ?
+        """, (id,))
+
+        banner = cur.fetchone()
+
+        if not banner:
+            return jsonify({
+                "error": "Banner não encontrado"
+            }), 404
+
+        dados = {
+            "id": banner[0],
+            "titulo": banner[1],
+            "texto": banner[2],
+            "situacao": banner[3],
+            "imagem": f"uploads/Banner/{banner[0]}.jpg"
+        }
+
+        return jsonify(dados), 200
+
+    except Exception as e:
+
+        return jsonify({
+            "error": f"Erro ao buscar banner: {str(e)}"
+        }), 500
+
+    finally:
+        cur.close()
+
+
