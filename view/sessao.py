@@ -586,6 +586,105 @@ def listar_sessao():
         if cur:
             cur.close()
 
+@sessao_blueprint.route('/listar_sessao_home', methods=['GET'])
+def listar_sessao_home():
+
+    cur = None
+
+    try:
+
+        cur = con.cursor()
+
+        cur.execute("""
+            SELECT
+                sessao.ID_SESSAO,
+                sessao.ID_FILME,
+                sessao.ID_SALA,
+                filme.TITULO,
+                sala.NOME,
+                sessao.DATA,
+                sessao.HORARIO,
+                sessao.VALOR_ASSENTO,
+                sessao.STATUS,
+                filme.GENERO,
+                sala.QTD_FILEIRAS,
+                sala.QTD_COLUNAS
+            FROM sessao
+            INNER JOIN filme
+                ON filme.ID_FILME = sessao.ID_FILME
+            INNER JOIN sala
+                ON sala.ID_SALA = sessao.ID_SALA
+            WHERE sessao.STATUS = '1'
+            AND (
+                sessao.DATA > CURRENT_DATE
+                OR (
+                    sessao.DATA = CURRENT_DATE
+                    AND sessao.HORARIO > CURRENT_TIME
+                )
+            )
+            ORDER BY sessao.DATA, sessao.HORARIO
+        """)
+
+        resultado = cur.fetchall()
+
+        sessoes = []
+
+        for linha in resultado:
+
+            id_sessao = linha[0]
+
+            qtd_fileiras = int(linha[10])
+            qtd_colunas = int(linha[11])
+
+            capacidade_total = qtd_fileiras * qtd_colunas
+
+            # CONTA ASSENTOS RESERVADOS
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM RESERVA_ASSENTO ra
+                INNER JOIN RESERVA r
+                    ON r.ID_RESERVA = ra.ID_RESERVA
+                WHERE r.ID_SESSAO = ?
+            """, (id_sessao,))
+
+            total_assentos = cur.fetchone()[0]
+
+            # NÃO LISTA SESSÃO ESGOTADA
+            if total_assentos >= capacidade_total:
+                continue
+
+            sessoes.append({
+                "id_sessao": linha[0],
+                "id_filme": linha[1],
+                "id_sala": linha[2],
+                "filme": linha[3],
+                "sala": linha[4],
+                "data": str(linha[5]),
+                "horario": str(linha[6]),
+                "valor_assento": float(linha[7]),
+                "status": linha[8],
+                "genero": linha[9],
+                "capacidade_total": capacidade_total,
+                "assentos_reservados": total_assentos
+            })
+
+        return jsonify({
+            "sessao": sessoes
+        }), 200
+
+    except Exception as e:
+
+        print(str(e))
+
+        return jsonify({
+            "error": f"Erro ao listar sessões da home: {str(e)}"
+        }), 500
+
+    finally:
+
+        if cur:
+            cur.close()
+
 
 @sessao_blueprint.route('/imagem_filme/<path:filename>')
 def servir_imagem_filme(filename):
