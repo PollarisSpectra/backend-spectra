@@ -23,6 +23,7 @@ reservas_bp = Blueprint('reservas', __name__, url_prefix='/reservas')
 
 def fmt_brl(v) -> str:
     """Formata valor numérico para moeda BRL: R$ 1.234,56"""
+    try:
         return f"R$ {float(v):,.2f}".replace(',', 'X').replace('.', ',').replace('X', '.')
     except (TypeError, ValueError):
         return 'R$ 0,00'
