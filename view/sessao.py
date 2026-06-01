@@ -788,3 +788,54 @@ def total_sessoes_ativas():
         if cur:
             cur.close()
 
+@sessao_blueprint.route('/buscar_sessao/<int:id>', methods=['GET'])
+def buscar_sessao(id):
+
+    cur = None
+
+    try:
+
+        cur = con.cursor()
+
+        cur.execute("""
+            SELECT
+                ID_SESSAO,
+                ID_FILME,
+                ID_SALA,
+                DATA,
+                HORARIO,
+                VALOR_ASSENTO,
+                STATUS
+            FROM sessao
+            WHERE ID_SESSAO = ?
+        """, (id,))
+
+        resultado = cur.fetchone()
+
+        if not resultado:
+            return jsonify({
+                "error": "Sessão não encontrada"
+            }), 404
+
+        return jsonify({
+            "id_sessao": resultado[0],
+            "id_filme": resultado[1],
+            "id_sala": resultado[2],
+            "data": str(resultado[3]),
+            "horario": str(resultado[4]),
+            "valor_assento": float(resultado[5]),
+            "status": resultado[6]
+        }), 200
+
+    except Exception as e:
+
+        print(str(e))
+
+        return jsonify({
+            "error": "Erro ao buscar sessão"
+        }), 500
+
+    finally:
+
+        if cur:
+            cur.close()

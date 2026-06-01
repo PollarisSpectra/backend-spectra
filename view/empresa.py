@@ -411,23 +411,47 @@ def buscar_cores():
 
     finally:
         cur.close()
-
+        
 @empresa_blueprint.route('/verificar_empresa', methods=['GET'])
 def verificar_empresa():
 
     cur = con.cursor()
+
     try:
 
         cur.execute("""
-            SELECT FIRST 1 ID_EMPRESA
+            SELECT FIRST 1
+                ID_EMPRESA,
+                NOME_FANTASIA,
+                TELEFONE,
+                RUA,
+                NUMERO,
+                BAIRRO,
+                CIDADE
             FROM EMPRESA
         """)
 
         empresa = cur.fetchone()
 
+        if not empresa:
+
+            return jsonify({
+                "tem_empresa": False
+            })
+
+        endereco = (
+            f"{empresa[3]}, "
+            f"{empresa[4]} - "
+            f"{empresa[5]}, "
+            f"{empresa[6]}"
+        )
+
         return jsonify({
-            "tem_empresa": bool(empresa),
-            "id_empresa": int(empresa[0])
+            "tem_empresa": True,
+            "id_empresa": int(empresa[0]),
+            "nome_fantasia": empresa[1],
+            "telefone": empresa[2],
+            "endereco": endereco
         })
 
     except Exception as e:
