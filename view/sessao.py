@@ -144,23 +144,38 @@ def relatorio_ocupacao():
         cur = con.cursor()
 
         cur.execute("""
-                    SELECT s.id_sessao,
-                           f.titulo                           AS filme_titulo,
-                           sa.nome                            AS sala_nome,
-                           s.data,
-                           s.horario,
-                           (sa.qtd_fileiras * sa.qtd_colunas) AS capacidade_total,
-                           COUNT(r.id_reserva)                AS total_reservas,
-                           CAST(((CAST(COUNT(r.id_reserva) AS REAL) / (sa.qtd_fileiras * sa.qtd_colunas)) *
-                                 100) AS NUMERIC(15, 2))
-                                                              AS percentual_ocupacao
-                    FROM sessao s
-                             INNER JOIN filme f ON f.id_filme = s.id_filme
-                             INNER JOIN sala sa ON sa.id_sala = s.id_sala
-                             LEFT JOIN reserva r ON r.id_sessao = s.id_sessao
-                    GROUP BY s.id_sessao, f.titulo, sa.nome, s.data, s.horario, (sa.qtd_fileiras * sa.qtd_colunas)
-                    HAVING COUNT(r.id_reserva) > 0
-                    ORDER BY 8 DESC, 7 DESC
+            SELECT
+                s.id_sessao,
+                f.titulo AS filme_titulo,
+                sa.nome AS sala_nome,
+                s.data,
+                s.horario,
+                (sa.qtd_fileiras * sa.qtd_colunas) AS capacidade_total,
+                COUNT(ra.id_assento_sala) AS total_assentos_vendidos,
+                CAST(
+                    (
+                        (CAST(COUNT(ra.id_assento_sala) AS REAL) /
+                        (sa.qtd_fileiras * sa.qtd_colunas)) * 100
+                    ) AS NUMERIC(15, 2)
+                ) AS percentual_ocupacao
+            FROM sessao s
+            INNER JOIN filme f 
+                ON f.id_filme = s.id_filme
+            INNER JOIN sala sa 
+                ON sa.id_sala = s.id_sala
+            LEFT JOIN reserva r 
+                ON r.id_sessao = s.id_sessao
+            LEFT JOIN reserva_assento ra 
+                ON ra.id_reserva = r.id_reserva
+            GROUP BY
+                s.id_sessao,
+                f.titulo,
+                sa.nome,
+                s.data,
+                s.horario,
+                (sa.qtd_fileiras * sa.qtd_colunas)
+            HAVING COUNT(ra.id_assento_sala) > 0
+            ORDER BY 8 DESC, 7 DESC
                     """)
         sessoes = cur.fetchall()
 
