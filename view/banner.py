@@ -171,8 +171,17 @@ def excluir_banner(id):
     finally:
         cur.close()
 
+
 @banner_blueprint.route('/listar', methods=['GET'])
 def listar_banners():
+
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({
+            "error": "Token de autenticação necessário."
+        }), 401
+
     cur = con.cursor()
 
     try:
@@ -212,6 +221,7 @@ def listar_banners():
     finally:
         cur.close()
 
+
 @banner_blueprint.route('/imagem_banner/<path:filename>')
 def servir_imagem_banner(filename):
     caminho = os.path.join(current_app.config['UPLOAD_FOLDER'], "Banner")
@@ -219,8 +229,16 @@ def servir_imagem_banner(filename):
 
 
 
+
 @banner_blueprint.route('/<int:id>', methods=['GET'])
 def buscar_banner(id):
+
+    token = request.cookies.get('access_token')
+
+    if not token:
+        return jsonify({
+            "error": "Token de autenticação necessário."
+        }), 401
 
     cur = con.cursor()
 
@@ -254,12 +272,9 @@ def buscar_banner(id):
         return jsonify(dados), 200
 
     except Exception as e:
-
         return jsonify({
             "error": f"Erro ao buscar banner: {str(e)}"
         }), 500
 
     finally:
         cur.close()
-
-

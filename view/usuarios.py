@@ -7,36 +7,98 @@ import os.path
 import jwt
 
 usuarios_blueprint = Blueprint('usuarios', __name__, url_prefix='/usuarios')
-
 @usuarios_blueprint.route('/', methods=['GET'])
 def todos_usuarios():
+    cur = None
+
     try:
         token = request.cookies.get('access_token')
-        
+
         if not token:
             return jsonify({"error": "Token necessário"}), 400
-        
+
         payload = decodificar_token(token)
 
         if payload['tipo'] != 0:
-            return jsonify({
-                "error": "Acesso negado",
-                "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
-            }), 403
+            return jsonify({"error": "Acesso negado"}), 403
 
-        cursor = con.cursor()
+        nome = request.args.get("nome")
+        email = request.args.get("email")
+        tipo = request.args.get("tipo")
 
-        cursor.execute("select * from usuario")
-        usuarios = cursor.fetchall()
+        cur = con.cursor()
 
-        return jsonify({"message": "Usuários obtidos com sucesso", "usuarios": usuarios}) 
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token expirado"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Token inválido"}), 401
+        if nome:
+
+            cur.execute("""
+                SELECT ID_USUARIO, NOME, EMAIL, TIPO, SITUACAO, TENTATIVAS, DATA_NASCIMENTO
+                FROM USUARIO
+                WHERE LOWER(NOME) LIKE ?
+                ORDER BY ID_USUARIO DESC
+            """, (f"%{nome.lower()}%",))
+
+        elif email:
+
+            cur.execute("""
+                SELECT ID_USUARIO, NOME, EMAIL, TIPO, SITUACAO, TENTATIVAS, DATA_NASCIMENTO
+                FROM USUARIO
+                WHERE LOWER(EMAIL) LIKE ?
+                ORDER BY ID_USUARIO DESC
+            """, (f"%{email.lower()}%",))
+
+        elif tipo:
+
+            tipo_formatado = tipo.lower()
+
+            if tipo_formatado in ["adm", "admin", "administrador"]:
+                tipo_valor = 0
+            elif tipo_formatado in ["cliente", "usuario", "usuário"]:
+                tipo_valor = 1
+            else:
+                return jsonify({"error": "Tipo inválido. Use administrador ou cliente."}), 400
+
+            cur.execute("""
+                SELECT ID_USUARIO, NOME, EMAIL, TIPO, SITUACAO, TENTATIVAS, DATA_NASCIMENTO
+                FROM USUARIO
+                WHERE TIPO = ?
+                ORDER BY ID_USUARIO DESC
+            """, (tipo_valor,))
+
+        else:
+
+            cur.execute("""
+                SELECT ID_USUARIO, NOME, EMAIL, TIPO, SITUACAO, TENTATIVAS, DATA_NASCIMENTO
+                FROM USUARIO
+                ORDER BY ID_USUARIO DESC
+            """)
+
+        resultados = cur.fetchall()
+
+        usuarios = []
+
+        for usuario in resultados:
+            usuarios.append({
+                "id_usuario": usuario[0],
+                "nome": usuario[1],
+                "email": usuario[2],
+                "tipo": usuario[3],
+                "situacao": usuario[4],
+                "tentativas": usuario[5],
+                "data_nascimento": usuario[6]
+            })
+
+        return jsonify({
+            "usuarios": usuarios
+        }), 200
+
     except Exception as e:
-        print(str(e))
-        return jsonify({"message": "Internal Server Error"}), 500
+        print(e)
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        if cur:
+            cur.close()
+
 
 # Atualiza usuário
 @usuarios_blueprint.route('/<int:id>', methods=['PUT'])
@@ -51,7 +113,7 @@ def editar_usuario(id):
         id_usuario = payload['id_usuario']
         tipo = payload['tipo']
 
-        if id_usuario != id and tipo != 0: # os ids são diferentes e não é administrador
+        if id_usuario != id and tipo != 0:
             return jsonify({"error": "Você não pode editar outro usuário, apenas administradores."}), 401
 
     except jwt.ExpiredSignatureError:
@@ -67,11 +129,6 @@ def editar_usuario(id):
 
         nome = request.form.get('nome')
         email = request.form.get('email')
-
-        if not nome or not email:
-            return jsonify({"error": "Nome e email são obrigatórios."}), 400
-
-        email = request.form.get('email').strip().lower()
         senha = request.form.get('senha')
         data_nascimento = request.form.get('data_nascimento')
         imagem = request.files.get('imagem')
@@ -80,14 +137,25 @@ def editar_usuario(id):
         if cur.fetchone():
             return jsonify({"error": "Email já cadastrado"}), 400
 
-        if not validar_senha(senha):
-            return jsonify({"error": "Senha inválida"}), 400
+        if senha:
+            if not validar_senha(senha):
+                return jsonify({"error": "Senha inválida"}), 400
 
-        senha_hash = generate_password_hash(senha).decode('utf-8')
+            senha_hash = generate_password_hash(senha).decode('utf-8')
 
-        cur.execute("""
-            UPDATE usuario SET nome = ?, email = ?, data_nascimento = ?, senha = ?
-            WHERE id_usuario = ? """, (nome, email, data_nascimento, senha_hash, id))
+            cur.execute("""
+                UPDATE usuario
+                SET nome = ?, email = ?, data_nascimento = ?, senha = ?
+                WHERE id_usuario = ?
+            """, (nome, email, data_nascimento, senha_hash, id))
+
+        else:
+            cur.execute("""
+                UPDATE usuario
+                SET nome = ?, email = ?, data_nascimento = ?
+                WHERE id_usuario = ?
+            """, (nome, email, data_nascimento, id))
+
         con.commit()
 
         if imagem:
@@ -108,8 +176,9 @@ def editar_usuario(id):
         }), 200
 
     except Exception as e:
+        con.rollback()
         return jsonify({
-            "message": f"Erro ao atualizar usuário.{e}"
+            "message": f"Erro ao atualizar usuário. {e}"
         }), 500
 
     finally:
@@ -131,16 +200,20 @@ def excluir(id):
                 "mensagem": "Você não tem permissão para realizar esta ação. Apenas administradores podem acessar este recurso."
             }), 403
 
-        cursor = con.cursor()
+        cur = con.cursor()
 
-        cursor.execute("SELECT 1 FROM usuario WHERE id_usuario = ?", (id,))
-        if not cursor.fetchone():
+        cur.execute("SELECT 1 FROM usuario WHERE id_usuario = ?", (id,))
+        if not cur.fetchone():
             return jsonify({"error": "Usuário não encontrado"}), 404
 
-        cursor.execute("DELETE FROM usuario WHERE id_usuario = ?", (id,))
+        cur.execute("""
+            UPDATE usuario
+            SET situacao = 1
+            WHERE id_usuario = ?
+        """, (id,))
         con.commit()
 
-        return jsonify({"message": "Usuário deletado com sucesso"}) 
+        return jsonify({"message": "Usuário inativado com sucesso"})
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Token expired"}), 401
     except jwt.InvalidTokenError:
