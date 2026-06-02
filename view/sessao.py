@@ -620,65 +620,85 @@ def listar_sessao_home():
     cur = None
 
     try:
-
         cur = con.cursor()
 
-        cur.execute("""
-            SELECT
-                sessao.ID_SESSAO,
-                sessao.ID_FILME,
-                sessao.ID_SALA,
-                filme.TITULO,
-                sala.NOME,
-                sessao.DATA,
-                sessao.HORARIO,
-                sessao.VALOR_ASSENTO,
-                sessao.STATUS,
-                filme.GENERO,
-                sala.QTD_FILEIRAS,
-                sala.QTD_COLUNAS
-            FROM sessao
-            INNER JOIN filme
-                ON filme.ID_FILME = sessao.ID_FILME
-            INNER JOIN sala
-                ON sala.ID_SALA = sessao.ID_SALA
-            WHERE sessao.STATUS = '1'
-            AND (
-                sessao.DATA > CURRENT_DATE
-                OR (
-                    sessao.DATA = CURRENT_DATE
-                    AND sessao.HORARIO > CURRENT_TIME
+        id_sessao = request.args.get('id_sessao')
+
+        if id_sessao:
+            cur.execute("""
+                SELECT
+                    sessao.ID_SESSAO,
+                    sessao.ID_FILME,
+                    sessao.ID_SALA,
+                    filme.TITULO,
+                    sala.NOME,
+                    sessao.DATA,
+                    sessao.HORARIO,
+                    sessao.VALOR_ASSENTO,
+                    sessao.STATUS,
+                    filme.GENERO,
+                    sala.QTD_FILEIRAS,
+                    sala.QTD_COLUNAS
+                FROM sessao
+                INNER JOIN filme
+                    ON filme.ID_FILME = sessao.ID_FILME
+                INNER JOIN sala
+                    ON sala.ID_SALA = sessao.ID_SALA
+                WHERE sessao.ID_SESSAO = ?
+            """, (id_sessao,))
+        else:
+            cur.execute("""
+                SELECT
+                    sessao.ID_SESSAO,
+                    sessao.ID_FILME,
+                    sessao.ID_SALA,
+                    filme.TITULO,
+                    sala.NOME,
+                    sessao.DATA,
+                    sessao.HORARIO,
+                    sessao.VALOR_ASSENTO,
+                    sessao.STATUS,
+                    filme.GENERO,
+                    sala.QTD_FILEIRAS,
+                    sala.QTD_COLUNAS
+                FROM sessao
+                INNER JOIN filme
+                    ON filme.ID_FILME = sessao.ID_FILME
+                INNER JOIN sala
+                    ON sala.ID_SALA = sessao.ID_SALA
+                WHERE sessao.STATUS = '1'
+                AND (
+                    sessao.DATA > CURRENT_DATE
+                    OR (
+                        sessao.DATA = CURRENT_DATE
+                        AND sessao.HORARIO > CURRENT_TIME
+                    )
                 )
-            )
-            ORDER BY sessao.DATA, sessao.HORARIO
-        """)
+                ORDER BY sessao.DATA, sessao.HORARIO
+            """)
 
         resultado = cur.fetchall()
 
         sessoes = []
 
         for linha in resultado:
-
-            id_sessao = linha[0]
+            id_sessao_linha = linha[0]
 
             qtd_fileiras = int(linha[10])
             qtd_colunas = int(linha[11])
-
             capacidade_total = qtd_fileiras * qtd_colunas
 
-            # CONTA ASSENTOS RESERVADOS
             cur.execute("""
                 SELECT COUNT(*)
                 FROM RESERVA_ASSENTO ra
                 INNER JOIN RESERVA r
                     ON r.ID_RESERVA = ra.ID_RESERVA
                 WHERE r.ID_SESSAO = ?
-            """, (id_sessao,))
+            """, (id_sessao_linha,))
 
             total_assentos = cur.fetchone()[0]
 
-            # NÃO LISTA SESSÃO ESGOTADA
-            if total_assentos >= capacidade_total:
+            if not id_sessao and total_assentos >= capacidade_total:
                 continue
 
             sessoes.append({
@@ -701,18 +721,14 @@ def listar_sessao_home():
         }), 200
 
     except Exception as e:
-
         print(str(e))
-
         return jsonify({
             "error": f"Erro ao listar sessões da home: {str(e)}"
         }), 500
 
     finally:
-
         if cur:
             cur.close()
-
 
 @sessao_blueprint.route('/imagem_filme/<path:filename>')
 def servir_imagem_filme(filename):
