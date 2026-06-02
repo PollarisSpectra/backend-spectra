@@ -374,7 +374,7 @@ def listar_reservas_usuario(id_usuario):
         # Query principal — SELECT FIRST/SKIP aparecia duplicado; corrigido
         cur.execute("""
                     SELECT FIRST ? SKIP ?
-                        r.ID_RESERVA, r.ID_PROMOCAO, r.ID_USUARIO, r.ID_SESSAO, r.VALORTOTAL, r.DESCONTO, r.STATUS, r.DATARESERVA, s.ID_FILME, f.TITULO AS FILME_TITULO
+                        r.ID_RESERVA    , r.ID_USUARIO, r.ID_SESSAO, r.VALORTOTAL, r.DESCONTO, r.STATUS, r.DATARESERVA, s.ID_FILME, f.TITULO AS FILME_TITULO
                     FROM RESERVA r
                         INNER JOIN SESSAO s
                     ON r.ID_SESSAO = s.ID_SESSAO
@@ -479,11 +479,11 @@ def criar_reserva():
 
         # Cria a reserva
         cur.execute("""
-                    INSERT INTO reserva (id_promocao, id_usuario, id_sessao, valortotal, desconto, status, datareserva,
+                    INSERT INTO reserva (id_usuario, id_sessao, valortotal, desconto, status, datareserva,
                                          expiracao)
-                    VALUES (?, ?, ?, ?, 0, ?, CURRENT_TIMESTAMP,
+                    VALUES (?, ?, ?, 0, ?, CURRENT_TIMESTAMP,
                             DATEADD(10 MINUTE TO CURRENT_TIMESTAMP)) RETURNING id_reserva
-                    """, (None, id_usuario, id_sessao, len(assentos) * valor_assento, 3))
+                    """, (id_usuario, id_sessao, len(assentos) * valor_assento, 3))
 
         id_reserva_criada = cur.fetchone()[0]
         if not id_reserva_criada:
@@ -710,6 +710,7 @@ def gerar_qrcode_reserva(id):
 def obter_assentos_ocupados(id):
     cur = None
     try:
+        cur = con.cursor()
 
         cur.execute("SELECT 1 FROM SESSAO where ID_SESSAO = ?", (id,))
         if not cur.fetchone():
