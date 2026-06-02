@@ -366,6 +366,7 @@ def cadastro_filme():
 @filmes_blueprint.route('/editar_filme/<int:id>', methods=['PUT'])
 def editar_filme(id):
     token = request.cookies.get('access_token')
+
     if not token:
         return jsonify({"error": "Token de autenticação necessário."}), 401
 
@@ -377,39 +378,64 @@ def editar_filme(id):
         return jsonify({"error": "Token invalid"}), 401
 
     cur = con.cursor()
+
     try:
-        cur.execute(
-            'SELECT titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer FROM filme WHERE id_filme = ?',
-            (id,)
-        )
+        cur.execute("""
+            SELECT titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer
+            FROM filme
+            WHERE id_filme = ?
+        """, (id,))
+
         filme_db = cur.fetchone()
+
         if not filme_db:
             return jsonify({"error": "Filme não encontrado"}), 404
 
-        titulo = request.form.get('titulo', filme_db[0])
-        sinopse = request.form.get('sinopse', filme_db[1])
-        genero = request.form.get('genero', filme_db[2])
-        duracao = request.form.get('duracao', filme_db[3])
-        classificacao = request.form.get('classificacao', filme_db[4])
-        data_lancamento = request.form.get('data_lancamento', filme_db[5])
-        trailer = request.form.get('trailer', filme_db[6])
+        titulo = request.form.get('titulo')
+
+        if not titulo or titulo.strip() == "":
+            return jsonify({"error": "Título é obrigatório"}), 400
+
+        titulo = titulo.strip()
+
+        sinopse = request.form.get('sinopse') or filme_db[1]
+        genero = request.form.get('genero') or filme_db[2]
+        duracao = request.form.get('duracao') or filme_db[3]
+        classificacao = request.form.get('classificacao') or filme_db[4]
+        data_lancamento = request.form.get('data_lancamento') or filme_db[5]
+        trailer = request.form.get('trailer') or filme_db[6]
         imagem = request.files.get('imagem')
 
-        cur.execute('SELECT 1 FROM filme WHERE titulo = ? AND id_filme != ?', (titulo, id))
+        cur.execute("""
+            SELECT 1
+            FROM filme
+            WHERE titulo = ?
+            AND id_filme != ?
+        """, (titulo, id))
         if cur.fetchone():
             return jsonify({"error": "Filme já cadastrado"}), 400
 
         cur.execute("""
-                    UPDATE filme
-                    SET titulo          = ?,
-                        sinopse         = ?,
-                        genero          = ?,
-                        duracao         = ?,
-                        classificacao   = ?,
-                        data_lancamento = ?,
-                        trailer         = ?
-                    WHERE id_filme = ?
-                    """, (titulo, sinopse, genero, duracao, classificacao, data_lancamento, trailer, id))
+            UPDATE filme
+            SET titulo = ?,
+                sinopse = ?,
+                genero = ?,
+                duracao = ?,
+                classificacao = ?,
+                data_lancamento = ?,
+                trailer = ?
+            WHERE id_filme = ?
+        """, (
+            titulo,
+            sinopse,
+            genero,
+            duracao,
+            classificacao,
+            data_lancamento,
+            trailer,
+            id
+        ))
+
         con.commit()
 
         if imagem:
@@ -417,16 +443,35 @@ def editar_filme(id):
             os.makedirs(caminho_destino, exist_ok=True)
             imagem.save(os.path.join(caminho_destino, f"{id}.jpg"))
 
+        caminho_imagem = os.path.join(
+            current_app.config['UPLOAD_FOLDER'],
+            "Filmes",
+            f"{id}.jpg"
+        )
+
+
+        if os.path.exists(caminho_imagem):
+            imagem_url = f"/imagem_filme/{id}.jpg"
+        else:
+            imagem_url = None
+
         return jsonify({
             "message": "Filme atualizado com sucesso",
             "filme": {
-                "id_filme": id, "titulo": titulo, "sinopse": sinopse,
-                "genero": genero, "duracao": duracao, "classificacao": classificacao,
-                "data_lancamento": data_lancamento, "trailer": trailer
+                "id_filme": id,
+                "titulo": titulo,
+                "sinopse": sinopse,
+                "genero": genero,
+                "duracao": duracao,
+                "classificacao": classificacao,
+                "data_lancamento": str(data_lancamento),
+                "trailer": trailer,
+                "imagem_url": imagem_url
             }
         }), 200
 
     except Exception as e:
+        con.rollback()
         return jsonify({"message": f"Erro ao atualizar filme. {e}"}), 500
     finally:
         cur.close()
