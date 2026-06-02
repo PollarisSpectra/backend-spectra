@@ -312,7 +312,7 @@ def editar_cores(id_empresa):
                 COR_MODAL = ?,
                 COR_ICONE = ?,
                 COR_TEXTO_FORMULARIO = ?
-            WHERE ID_EMPRESA = ?
+             ROWS 1
         """, (
             cor_botao,
             cor_principal,
@@ -328,8 +328,7 @@ def editar_cores(id_empresa):
             cor_linha,
             cor_modal,
             cor_icone,
-            cor_texto_formulario,
-            id_empresa
+            cor_texto_formulario
         ))
 
         con.commit()
