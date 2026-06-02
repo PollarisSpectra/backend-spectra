@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 from fpdf import FPDF
 import os
@@ -607,6 +608,115 @@ def listar_sessao():
 
         return jsonify(sessoes), 200
 
+    except Exception as e:
+        print(str(e))
+        return jsonify({"error": "Erro interno do servidor ao listar sessões"}), 500
+    finally:
+        if cur:
+            cur.close()
+
+@sessao_blueprint.route('/listar_sessao_paginacao', methods=['GET'])
+def listar_sessao_paginacao():
+    cur = None
+    try:
+        cur = con.cursor()
+        id_sessao = request.args.get('id_sessao')
+        filme = request.args.get('filme', '')
+        sala = request.args.get('sala', '')
+        data = request.args.get('data', '')
+        categoria = request.args.get('categoria', '')
+        page_size = int(request.args.get('page_size', 10))
+        page_number = int(request.args.get('page_number', 1))
+        offset = (page_number - 1) * page_size
+
+        base_query = """
+            FROM sessao
+                     INNER JOIN filme ON filme.ID_FILME = sessao.ID_FILME
+                     INNER JOIN sala ON sala.ID_SALA = sessao.ID_SALA
+        """
+
+        if id_sessao:
+            cur.execute(f"""
+                        SELECT COUNT(*)
+                        {base_query}
+                        WHERE sessao.ID_SESSAO = ?
+                        """, (id_sessao,))
+            total_results = cur.fetchone()[0]
+
+            cur.execute(f"""
+                        SELECT FIRST ? SKIP ?
+                               sessao.ID_SESSAO,
+                               sessao.ID_FILME,
+                               sessao.ID_SALA,
+                               filme.TITULO,
+                               sala.NOME,
+                               sessao.DATA,
+                               sessao.HORARIO,
+                               sessao.VALOR_ASSENTO,
+                               sessao.STATUS,
+                               filme.GENERO
+                        {base_query}
+                        WHERE sessao.ID_SESSAO = ?
+                        ORDER BY sessao.ID_SESSAO
+                        """, (page_size, offset, id_sessao))
+        else:
+            params = (f"%{filme}%", f"%{sala}%", f"%{data}%", f"%{categoria}%")
+            filters = """
+                WHERE UPPER(filme.TITULO) LIKE UPPER(?)
+                  AND UPPER(sala.NOME) LIKE UPPER(?)
+                  AND CAST(sessao.DATA AS VARCHAR(20)) LIKE ?
+                  AND UPPER(filme.GENERO) LIKE UPPER(?)
+            """
+
+            cur.execute(f"SELECT COUNT(*) {base_query} {filters}", params)
+            total_results = cur.fetchone()[0]
+
+            cur.execute(f"""
+                        SELECT FIRST ? SKIP ?
+                               sessao.ID_SESSAO,
+                               sessao.ID_FILME,
+                               sessao.ID_SALA,
+                               filme.TITULO,
+                               sala.NOME,
+                               sessao.DATA,
+                               sessao.HORARIO,
+                               sessao.VALOR_ASSENTO,
+                               sessao.STATUS,
+                               filme.GENERO
+                        {base_query}
+                        {filters}
+                        ORDER BY sessao.ID_SESSAO
+                        """, (page_size, offset, *params))
+
+        resultado = cur.fetchall()
+
+        if not resultado and page_number == 1:
+            return jsonify({"error": "Não há sessões relacionadas à sua busca"}), 404
+
+        sessoes = []
+        for linha in resultado:
+            sessoes.append({
+                "id_sessao": linha[0],
+                "id_filme": linha[1],
+                "id_sala": linha[2],
+                "filme": linha[3],
+                "sala": linha[4],
+                "data": str(linha[5]),
+                "horario": str(linha[6]),
+                "valor_assento": linha[7],
+                "status": linha[8],
+                "genero": linha[9],
+            })
+
+        return jsonify({
+            "total_results": total_results,
+            "total_pages": math.ceil(total_results / page_size) if total_results > 0 else 0,
+            "current_page": page_number,
+            "sessoes": sessoes,
+        }), 200
+
+    except ValueError:
+        return jsonify({"error": "page_size e page_number devem ser números inteiros"}), 400
     except Exception as e:
         print(str(e))
         return jsonify({"error": "Erro interno do servidor ao listar sessões"}), 500
