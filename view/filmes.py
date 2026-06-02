@@ -305,6 +305,17 @@ def buscar_filme(id):
 
         cur.close()
 
+        caminho = os.path.join(
+            current_app.config['UPLOAD_FOLDER'],
+            "Filmes",
+            f"{id}.jpg"
+        )
+
+        if os.path.exists(caminho):
+            filme['imagem_url'] = f"/filmes/imagem_filme/{id}.jpg"
+        else:
+            filme['imagem_url'] = None
+
         return jsonify({"filme": filme}), 200
     except jwt.ExpiredSignatureError:
         return jsonify({"error": "Expired token"}), 401
