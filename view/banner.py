@@ -175,13 +175,6 @@ def excluir_banner(id):
 @banner_blueprint.route('/listar', methods=['GET'])
 def listar_banners():
 
-    token = request.cookies.get('access_token')
-
-    if not token:
-        return jsonify({
-            "error": "Token de autenticação necessário."
-        }), 401
-
     cur = con.cursor()
 
     try:
