@@ -49,9 +49,9 @@ class ReservaPDF(FPDF):
     COR_BODY_TEXT = (30, 30, 40)
 
     STATUS_BADGE = {
-        1: ((220, 220, 220), (50, 50, 50), 'Pago'),
-        2: ((200, 200, 200), (80, 80, 80), 'Pendente'),
-        3: ((160, 160, 160), (255, 255, 255), 'Cancelado'),
+        1: ((220, 220, 220), (50, 50, 50), 'Confirmada'),
+        2: ((160, 160, 160), (255, 255, 255), 'Cancelada'),
+        3: ((200, 200, 200), (80, 80, 80), 'Pendente'),
     }
     STATUS_DEFAULT = ((190, 190, 190), (50, 50, 50), 'Indefinido')
 
@@ -261,7 +261,7 @@ def relatorio_reservas():
                     data_fmt,
                     fmt_brl(valor_total),
                     fmt_brl(desconto),
-                    status,
+                    int(status) if status is not None else 0,
                 ],
                 num_linha
             )
